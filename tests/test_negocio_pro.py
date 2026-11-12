@@ -11,7 +11,7 @@ from negocio_pro import build
 
 @pytest.fixture
 def demo(tmp_path):
-    return load_workbook(build(tmp_path / 'demo.xlsx', demo=True, ventas=14, gastos=14, productos=3, clientes=3, proveedores=3, movimientos=14))
+    return load_workbook(build(tmp_path / 'demo.xlsx', demo=True, ventas=14, gastos=14, productos=3, clientes=3, proveedores=3, movimientos=14, caja=14, objetivos=14))
 
 
 def validation(ws, kind):
@@ -19,8 +19,8 @@ def validation(ws, kind):
 
 
 def test_outputs_and_demo(tmp_path, demo):
-    clean = load_workbook(build(tmp_path / 'clean.xlsx', ventas=14, gastos=14, productos=3, clientes=3, proveedores=3, movimientos=14))
-    expected = ['Dashboard', 'Ventas', 'Gastos', 'Productos', 'Clientes', 'Proveedores', 'Inventario', 'Configuración']
+    clean = load_workbook(build(tmp_path / 'clean.xlsx', ventas=14, gastos=14, productos=3, clientes=3, proveedores=3, movimientos=14, caja=14, objetivos=14))
+    expected = ['Dashboard', 'Ventas', 'Gastos', 'Productos', 'Clientes', 'Proveedores', 'Inventario', 'Tesorería', 'Objetivos', 'Informes', 'Configuración']
     assert demo.sheetnames == clean.sheetnames == expected
     assert demo['Ventas']['B5'].value == 'V-001'
     assert clean['Ventas']['B5'].value is None
@@ -155,3 +155,69 @@ def test_new_sheets_protection_and_dashboard(demo):
     assert 'Proveedores!' in d['B16'].value
     assert 'Productos!' in d['B17'].value and 'Productos!' in d['B18'].value
     assert 'SUMIFS(Gastos!' in d['J5'].value
+
+
+def test_treasury_partial_payments_and_references(demo):
+    t, v, g, d = (demo[x] for x in ('Tesorería', 'Ventas', 'Gastos', 'Dashboard'))
+    assert [(t[f'C{r}'].value, t[f'G{r}'].value) for r in range(5, 9)] == [
+        ('Cobro', 'V-001'), ('Cobro', 'V-002'), ('Pago', 'G-001'), ('Pago', 'G-002')]
+    assert 'COUNTIF($A$5:$A$18,A5)=1' in t['H5'].value  # ID duplicado
+    assert 'COUNTIFS(Ventas!$B$5:$B$18,G5' in t['H5'].value  # venta inexistente
+    assert 'COUNTIFS(Gastos!$B$5:$B$18,G5' in t['H5'].value  # gasto inexistente
+    assert '<=SUMIFS(Ventas!$K$5:$K$18' in t['H5'].value  # no cobrar más que total
+    assert '<=SUMIFS(Gastos!$I$5:$I$18' in t['H5'].value  # no pagar más que total
+    assert 'SUMIFS($E$5:$E$18,$G$5:$G$18,G5,$C$5:$C$18,C5)' in t['H5'].value
+    assert 'Tesorería!$I$5:$I$18' in v['P5'].value
+    assert 'Tesorería!$J$5:$J$18' in g['L5'].value
+    assert v['Q5'].value == '=IF(K5="","",K5-P5)'
+    assert g['M5'].value == '=IF(I5="","",I5-L5)'
+    assert all('Tesorería!' not in d[cell].value for cell in ('B5', 'B6', 'B7', 'B8'))
+    assert not t['E5'].protection.locked and t['H5'].protection.locked
+    assert {x.formula1 for x in validation(t, 'list')} == {'=TiposCaja', '=CuentasCaja'}
+
+
+def test_treasury_demo_expected_independent_arithmetic(demo):
+    t, v, g = (demo[x] for x in ('Tesorería', 'Ventas', 'Gastos'))
+    sale_gross = Decimal(str(v['E5'].value)) * Decimal(str(v['F5'].value)) * (
+        1 - Decimal(str(v['G5'].value))) * (1 + Decimal(str(v['I5'].value)))
+    expense_gross = Decimal(str(g['F5'].value)) * (1 + Decimal(str(g['G5'].value)))
+    assert sale_gross == Decimal('871.20')
+    assert expense_gross == Decimal('145.20')
+    assert sale_gross - Decimal(str(t['E5'].value)) == Decimal('371.20')
+    assert expense_gross - Decimal(str(t['E7'].value)) == Decimal('45.20')
+    inflows = sum(Decimal(str(t[f'E{r}'].value)) for r in (5, 6))
+    outflows = sum(Decimal(str(t[f'E{r}'].value)) for r in (7, 8))
+    assert (inflows, outflows) == (Decimal('790.4'), Decimal('142.35'))
+    assert Decimal('1100') + inflows - outflows == Decimal('1748.05')
+    assert t['P5'].value == '=M5+N5-O5'
+    assert t['M6'].value == '=P5'
+    assert 'Tesorería!' in demo['Dashboard']['J18'].value
+
+
+def test_year_change_and_objectives_without_data(demo):
+    t, o = demo['Tesorería'], demo['Objetivos']
+    assert '"FUERA DE EJERCICIO"' in t['H5'].value
+    assert '"FUERA DE EJERCICIO"' in demo['Ventas']['H5'].value
+    assert '"FUERA DE EJERCICIO"' in demo['Gastos']['H5'].value
+    assert "'Configuración'!$B$6" in t['L5'].value
+    assert 'COUNTIFS($A$5:$A$18,A5,$B$5:$B$18,B5)=1' in o['O5'].value
+    assert 'COUNT(C5,G5,K5)=0,"SIN META"' in o['O5'].value
+    assert '"SIN ACTIVIDAD"' in o['P5'].value
+    assert 'P5="SIN ACTIVIDAD"' in o['E5'].value
+    assert 'C5=0,"n.a."' in o['E5'].value
+    assert o['A5'].value == 2026 and o['B5'].value == 1
+    assert o['C5'].value == 700 and o['G5'].value == 400 and o['K5'].value == 130
+
+
+def test_reports_reconcile_with_dashboard(demo):
+    d, r = demo['Dashboard'], demo['Informes']
+    for row in range(5, 17):
+        assert r[f'A{row}'].value == f'=Dashboard!C{row}'
+        for col, source in [('B', 'D'), ('C', 'E'), ('D', 'F'), ('E', 'G')]:
+            assert r[f'{col}{row}'].value == f'=Dashboard!{source}{row}'
+    for col, source in [('B', 'B5'), ('C', 'B6'), ('D', 'B7'), ('E', 'B8'), ('F', 'B9')]:
+        assert r[f'{col}18'].value == f'=Dashboard!{source}'
+    assert r['I5'].value == '=Dashboard!J5'
+    assert 'SUMIFS(Ventas!$H$5:$H$18' in r['M5'].value
+    assert 'SUMIFS(Ventas!$M$5:$M$18' in r['N5'].value
+    assert len(r._charts) == 1

@@ -101,8 +101,8 @@ def flag(ws, formula, target):
     ws.conditional_formatting.add(target, FormulaRule(formula=[formula], fill=PatternFill('solid', fgColor=RED)))
 
 
-def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clientes=200, proveedores=200, movimientos=500):
-    if min(ventas, gastos, productos, clientes, proveedores, movimientos) < 2:
+def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clientes=200, proveedores=200, movimientos=500, caja=500, objetivos=120):
+    if min(ventas, gastos, productos, clientes, proveedores, movimientos, caja, objetivos) < 2:
         raise ValueError('Cada capacidad debe ser al menos 2')
     output.parent.mkdir(parents=True, exist_ok=True)
     wb = Workbook()
@@ -114,10 +114,14 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     cs = wb.create_sheet('Clientes')
     ss = wb.create_sheet('Proveedores')
     inv = wb.create_sheet('Inventario')
+    cash = wb.create_sheet('Tesorería')
+    goals = wb.create_sheet('Objetivos')
+    reports = wb.create_sheet('Informes')
     cfg = wb.create_sheet('Configuración')
     wb.calculation = CalcProperties(calcMode='auto', fullCalcOnLoad=True, forceFullCalc=True)
     ve, ge, pe = 4 + ventas, 4 + gastos, 4 + productos
     ce, se, ie = 4 + clientes, 4 + proveedores, 4 + movimientos
+    te, oe = 4 + caja, 4 + objetivos
 
     style_sheet(cfg, 'Configuración', ['Parámetro', 'Valor', 'Categorías de gasto', 'Tipos IVA'], [32, 22, 28, 18], 20)
     cfg['A5'], cfg['B5'] = 'Empresa', 'Mi negocio'
@@ -138,6 +142,8 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     wb.defined_names.add(DefinedName('EstadosEntidad', attr_text="'Configuración'!$E$5:$E$6"))
     wb.defined_names.add(DefinedName('TiposProducto', attr_text="'Configuración'!$F$5:$F$7"))
     wb.defined_names.add(DefinedName('TiposMovimiento', attr_text="'Configuración'!$G$5:$G$8"))
+    wb.defined_names.add(DefinedName('CuentasCaja', attr_text="'Configuración'!$H$5:$H$14"))
+    wb.defined_names.add(DefinedName('TiposCaja', attr_text="'Configuración'!$K$5:$K$6"))
     for col, values in [(5, ['Activo', 'Inactivo']), (6, ['Físico', 'Servicio', 'Sin control']),
                         (7, ['Entrada', 'Salida', 'Ajuste +', 'Ajuste -'])]:
         for row, value in enumerate(values, 5):
@@ -147,6 +153,26 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
         cfg.cell(4, col).fill = PatternFill('solid', fgColor=NAVY)
         cfg.cell(4, col).font = Font(name='Aptos', bold=True, color=WHITE)
         cfg.column_dimensions[get_column_letter(col)].width = width
+    for col, header, width in [(8, 'Cuenta de caja', 22), (9, 'Saldo inicial', 20), (10, 'Saldo final', 20), (11, 'Tipo caja', 16)]:
+        cfg.cell(4, col, header)
+        cfg.cell(4, col).fill = PatternFill('solid', fgColor=NAVY)
+        cfg.cell(4, col).font = Font(name='Aptos', bold=True, color=WHITE)
+        cfg.column_dimensions[get_column_letter(col)].width = width
+    for row, account in enumerate(('Banco', 'Efectivo'), 5):
+        cfg.cell(row, 8, account)
+        cfg.cell(row, 9, 0).number_format = EURO
+    cfg['K5'], cfg['K6'] = 'Cobro', 'Pago'
+    for row in range(5, 15):
+        for col in (8, 9):
+            cell = cfg.cell(row, col)
+            protection = copy(cell.protection)
+            protection.locked = False
+            cell.protection = protection
+            cell.fill = PatternFill('solid', fgColor=INPUT)
+        cfg.cell(row, 10, f'=IF(H{row}="","",I{row}+SUMIFS(Tesorería!$I$5:$I${te},Tesorería!$F$5:$F${te},H{row},Tesorería!$B$5:$B${te},">="&DATE($B$6,1,1),Tesorería!$B$5:$B${te},"<"&DATE($B$6+1,1,1))-SUMIFS(Tesorería!$J$5:$J${te},Tesorería!$F$5:$F${te},H{row},Tesorería!$B$5:$B${te},">="&DATE($B$6,1,1),Tesorería!$B$5:$B${te},"<"&DATE($B$6+1,1,1)))').number_format = EURO
+    add_custom(cfg, 'H5:H14', 'OR(H5="",COUNTIF($H$5:$H$14,H5)=1)', 'La cuenta debe tener un nombre único.')
+    add_decimal(cfg, 'I5:I14')
+    flag(cfg, 'AND($H5<>"",NOT(ISNUMBER($I5)))', 'H5:I14')
     for row in cfg.iter_rows(min_row=5, max_row=20, max_col=4):
         for c in row:
             c.font = Font(name='Aptos', color=NAVY)
@@ -211,15 +237,17 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     add_date(inv, f'A5:A{ie}')
     flag(inv, '$I5="REVISAR"', f'A5:I{ie}')
 
-    style_sheet(vs, 'Ventas · importes sin IVA', ['Fecha', 'ID venta', 'ID producto', 'Cliente ID', 'Cantidad', 'Precio unit. neto', 'Descuento %', 'Base neta', 'IVA %', 'IVA repercutido', 'Total con IVA', 'Coste unit. neto', 'Coste estimado', 'Referencia', 'Estado'], [16, 18, 18, 18, 13, 21, 16, 20, 13, 21, 21, 21, 20, 21, 21], ve)
+    style_sheet(vs, 'Ventas · importes sin IVA', ['Fecha', 'ID venta', 'ID producto', 'Cliente ID', 'Cantidad', 'Precio unit. neto', 'Descuento %', 'Base neta', 'IVA %', 'IVA repercutido', 'Total con IVA', 'Coste unit. neto', 'Coste estimado', 'Referencia', 'Estado', 'Cobrado', 'Pendiente'], [16, 18, 18, 18, 13, 21, 16, 20, 13, 21, 21, 21, 20, 21, 21, 20, 20], ve)
     vs['A2'] = 'Amarillo: entrada · blanco/gris: cálculo · Estado REVISAR/FUERA: no entra en Dashboard. Precio y coste son históricos.'
-    format_body(vs, 5, ve, 15, {1, 2, 3, 4, 5, 6, 7, 9, 12, 14}, {1: DATE, 6: EURO, 7: PERCENT, 8: EURO, 9: PERCENT, 10: EURO, 11: EURO, 12: EURO, 13: EURO})
+    format_body(vs, 5, ve, 17, {1, 2, 3, 4, 5, 6, 7, 9, 12, 14}, {1: DATE, 6: EURO, 7: PERCENT, 8: EURO, 9: PERCENT, 10: EURO, 11: EURO, 12: EURO, 13: EURO, 16: EURO, 17: EURO})
     for r in range(5, ve + 1):
         vs.cell(r, 15, f'=IF(COUNTA(A{r}:G{r},I{r},L{r},N{r})=0,"",IF(AND(ISNUMBER(A{r}),ISNUMBER(E{r}),E{r}>0,ISNUMBER(F{r}),F{r}>=0,ISNUMBER(G{r}),G{r}>=0,G{r}<=1,ISNUMBER(I{r}),COUNTIF(TiposIVA,I{r})=1,ISNUMBER(L{r}),L{r}>=0,B{r}<>"",COUNTIF($B$5:$B${ve},B{r})=1,C{r}<>"",COUNTIF(IdsProducto,C{r})=1,COUNTIFS(Productos!$A$5:$A${pe},C{r},Productos!$M$5:$M${pe},"OK")=1,OR(D{r}="",COUNTIFS(Clientes!$A$5:$A${ce},D{r},Clientes!$I$5:$I${ce},"OK")=1)),IF(YEAR(A{r})=\'Configuración\'!$B$6,"OK","FUERA DE EJERCICIO"),"REVISAR"))')
-        vs.cell(r, 8, f'=IF(O{r}<>"OK","",ROUND(E{r}*F{r}*(1-G{r}),2))')
+        vs.cell(r, 8, f'=IF(AND(O{r}<>"OK",O{r}<>"FUERA DE EJERCICIO"),"",ROUND(E{r}*F{r}*(1-G{r}),2))')
         vs.cell(r, 10, f'=IF(H{r}="","",ROUND(H{r}*I{r},2))')
         vs.cell(r, 11, f'=IF(H{r}="","",H{r}+J{r})')
         vs.cell(r, 13, f'=IF(H{r}="","",ROUND(E{r}*L{r},2))')
+        vs.cell(r, 16, f'=IF(K{r}="","",SUMIFS(Tesorería!$I$5:$I${te},Tesorería!$G$5:$G${te},B{r}))')
+        vs.cell(r, 17, f'=IF(K{r}="","",K{r}-P{r})')
     add_decimal(vs, f'E5:E{ve}', '0.000001')
     add_decimal(vs, f'F5:F{ve}')
     add_decimal(vs, f'G5:G{ve}', '0', '1')
@@ -231,16 +259,18 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     add_custom(vs, f'D5:D{ve}', 'OR(D5="",COUNTIF(IdsCliente,D5)=1)', 'El cliente es opcional; si se indica, debe existir una sola vez.')
     flag(vs, f'AND($B5<>"",COUNTIF($B$5:$B${ve},$B5)>1)', f'B5:B{ve}')
     flag(vs, f'AND($C5<>"",COUNTIF(Productos!$A$5:$A${pe},$C5)=0)', f'C5:C{ve}')
-    flag(vs, '$O5="REVISAR"', f'A5:O{ve}')
+    flag(vs, '$O5="REVISAR"', f'A5:Q{ve}')
     flag(vs, '$O5="FUERA DE EJERCICIO"', f'O5:O{ve}')
 
-    style_sheet(gs, 'Gastos · importes sin IVA', ['Fecha', 'ID gasto', 'Categoría', 'Proveedor ID', 'Concepto', 'Base neta', 'IVA %', 'IVA soportado', 'Total con IVA', 'Referencia', 'Estado'], [16, 18, 22, 19, 34, 19, 13, 20, 20, 20, 21], ge)
+    style_sheet(gs, 'Gastos · importes sin IVA', ['Fecha', 'ID gasto', 'Categoría', 'Proveedor ID', 'Concepto', 'Base neta', 'IVA %', 'IVA soportado', 'Total con IVA', 'Referencia', 'Estado', 'Pagado', 'Pendiente'], [16, 18, 22, 19, 34, 19, 13, 20, 20, 20, 21, 20, 20], ge)
     gs['A2'] = 'Amarillo: entrada · blanco/gris: cálculo · Estado REVISAR/FUERA: no entra en Dashboard.'
-    format_body(gs, 5, ge, 11, {1, 2, 3, 4, 5, 6, 7, 10}, {1: DATE, 6: EURO, 7: PERCENT, 8: EURO, 9: EURO})
+    format_body(gs, 5, ge, 13, {1, 2, 3, 4, 5, 6, 7, 10}, {1: DATE, 6: EURO, 7: PERCENT, 8: EURO, 9: EURO, 12: EURO, 13: EURO})
     for r in range(5, ge + 1):
         gs.cell(r, 11, f'=IF(COUNTA(A{r}:G{r},J{r})=0,"",IF(AND(ISNUMBER(A{r}),B{r}<>"",COUNTIF($B$5:$B${ge},B{r})=1,C{r}<>"",COUNTIF(CategoriasGasto,C{r})=1,ISNUMBER(F{r}),F{r}>=0,ISNUMBER(G{r}),COUNTIF(TiposIVA,G{r})=1,OR(D{r}="",COUNTIFS(Proveedores!$A$5:$A${se},D{r},Proveedores!$I$5:$I${se},"OK")=1)),IF(YEAR(A{r})=\'Configuración\'!$B$6,"OK","FUERA DE EJERCICIO"),"REVISAR"))')
-        gs.cell(r, 8, f'=IF(K{r}<>"OK","",ROUND(F{r}*G{r},2))')
+        gs.cell(r, 8, f'=IF(AND(K{r}<>"OK",K{r}<>"FUERA DE EJERCICIO"),"",ROUND(F{r}*G{r},2))')
         gs.cell(r, 9, f'=IF(H{r}="","",F{r}+H{r})')
+        gs.cell(r, 12, f'=IF(I{r}="","",SUMIFS(Tesorería!$J$5:$J${te},Tesorería!$G$5:$G${te},B{r}))')
+        gs.cell(r, 13, f'=IF(I{r}="","",I{r}-L{r})')
     add_list(gs, 'CategoriasGasto', f'C5:C{ge}', 'Selecciona una categoría de Configuración.')
     add_list(gs, 'TiposIVA', f'G5:G{ge}', 'Selecciona un tipo de IVA de Configuración.')
     add_date(gs, f'A5:A{ge}')
@@ -248,8 +278,103 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     add_custom(gs, f'B5:B{ge}', f'OR(B5="",COUNTIF($B$5:$B${ge},B5)=1)', 'El ID de gasto debe ser único.')
     add_custom(gs, f'D5:D{ge}', 'OR(D5="",COUNTIF(IdsProveedor,D5)=1)', 'El proveedor es opcional; si se indica, debe existir una sola vez.')
     flag(gs, f'AND($B5<>"",COUNTIF($B$5:$B${ge},$B5)>1)', f'B5:B{ge}')
-    flag(gs, '$K5="REVISAR"', f'A5:K{ge}')
+    flag(gs, '$K5="REVISAR"', f'A5:M{ge}')
     flag(gs, '$K5="FUERA DE EJERCICIO"', f'K5:K{ge}')
+
+    style_sheet(cash, 'Tesorería · cobros y pagos reales', ['ID caja', 'Fecha efectiva', 'Tipo', 'Concepto', 'Importe con IVA', 'Cuenta', 'ID venta/gasto', 'Estado', 'Entrada', 'Salida'], [19, 18, 16, 32, 21, 20, 21, 21, 20, 20], te)
+    cash['A2'] = 'Fecha efectiva de caja; importes con IVA. Referencia opcional: Cobro→ID venta, Pago→ID gasto. No afecta beneficio.'
+    format_body(cash, 5, te, 10, {1, 2, 3, 4, 5, 6, 7}, {2: DATE, 5: EURO, 9: EURO, 10: EURO})
+    for r in range(5, te + 1):
+        sale_ok = f'COUNTIFS(Ventas!$B$5:$B${ve},G{r},Ventas!$O$5:$O${ve},"OK")+COUNTIFS(Ventas!$B$5:$B${ve},G{r},Ventas!$O$5:$O${ve},"FUERA DE EJERCICIO")=1'
+        expense_ok = f'COUNTIFS(Gastos!$B$5:$B${ge},G{r},Gastos!$K$5:$K${ge},"OK")+COUNTIFS(Gastos!$B$5:$B${ge},G{r},Gastos!$K$5:$K${ge},"FUERA DE EJERCICIO")=1'
+        sale_total = f'SUMIFS(Ventas!$K$5:$K${ve},Ventas!$B$5:$B${ve},G{r})'
+        expense_total = f'SUMIFS(Gastos!$I$5:$I${ge},Gastos!$B$5:$B${ge},G{r})'
+        linked_total = f'SUMIFS($E$5:$E${te},$G$5:$G${te},G{r},$C$5:$C${te},C{r})'
+        cash.cell(r, 8, f'=IF(COUNTA(A{r}:G{r})=0,"",IF(AND(A{r}<>"",COUNTIF($A$5:$A${te},A{r})=1,ISNUMBER(B{r}),COUNTIF(TiposCaja,C{r})=1,D{r}<>"",ISNUMBER(E{r}),E{r}>0,COUNTIF(CuentasCaja,F{r})=1,COUNTIFS(\'Configuración\'!$H$5:$H$14,F{r},\'Configuración\'!$I$5:$I$14,"<>")=1,IF(G{r}="",TRUE,IF(C{r}="Cobro",AND({sale_ok},{linked_total}<={sale_total}),AND({expense_ok},{linked_total}<={expense_total})))),IF(YEAR(B{r})=\'Configuración\'!$B$6,"OK","FUERA DE EJERCICIO"),"REVISAR"))')
+        cash.cell(r, 9, f'=IF(AND(OR(H{r}="OK",H{r}="FUERA DE EJERCICIO"),C{r}="Cobro"),E{r},"")')
+        cash.cell(r, 10, f'=IF(AND(OR(H{r}="OK",H{r}="FUERA DE EJERCICIO"),C{r}="Pago"),E{r},"")')
+    add_custom(cash, f'A5:A{te}', f'OR(A5="",COUNTIF($A$5:$A${te},A5)=1)', 'El ID de caja debe ser único.')
+    add_date(cash, f'B5:B{te}')
+    add_list(cash, 'TiposCaja', f'C5:C{te}')
+    add_decimal(cash, f'E5:E{te}', '0.000001')
+    add_list(cash, 'CuentasCaja', f'F5:F{te}')
+    flag(cash, '$H5="REVISAR"', f'A5:J{te}')
+    for col, label, width in [(12, 'Mes', 19), (13, 'Saldo inicial', 20), (14, 'Entradas', 20), (15, 'Salidas', 20), (16, 'Saldo final', 20)]:
+        cell = cash.cell(4, col, label)
+        cell.fill = PatternFill('solid', fgColor=NAVY)
+        cell.font = Font(name='Aptos', bold=True, color=WHITE)
+        cash.column_dimensions[get_column_letter(col)].width = width
+    for row in range(5, 17):
+        cash.cell(row, 12, f'=DATE(\'Configuración\'!$B$6,{row-4},1)').number_format = 'MMMM YYYY'
+        cash.cell(row, 13, '=SUM(\'Configuración\'!$I$5:$I$14)' if row == 5 else f'=P{row-1}').number_format = EURO
+        for col, source in [(14, 'I'), (15, 'J')]:
+            cash.cell(row, col, f'=SUMIFS(${source}$5:${source}${te},$H$5:$H${te},"OK",$B$5:$B${te},">="&L{row},$B$5:$B${te},"<"&EDATE(L{row},1))').number_format = EURO
+        cash.cell(row, 16, f'=M{row}+N{row}-O{row}').number_format = EURO
+
+    style_sheet(goals, 'Objetivos · metas por ejercicio y mes', ['Ejercicio', 'Mes (1-12)', 'Meta ventas', 'Ventas reales', 'Cumpl. ventas', 'Desv. ventas', 'Meta beneficio', 'Beneficio real', 'Cumpl. beneficio', 'Desv. beneficio', 'Límite gastos', 'Gastos reales', 'Control gastos', 'Ahorro vs límite', 'Estado', 'Actividad'], [16, 16, 20, 20, 18, 20, 20, 20, 20, 20, 20, 20, 18, 20, 19, 19], oe)
+    goals['A2'] = 'Una fila por ejercicio y mes. Metas sin IVA. Vacío = SIN META; meta 0 = porcentaje no aplicable.'
+    format_body(goals, 5, oe, 16, {1, 2, 3, 7, 11}, {3: EURO, 4: EURO, 5: PERCENT, 6: EURO, 7: EURO, 8: EURO, 9: PERCENT, 10: EURO, 11: EURO, 12: EURO, 13: PERCENT, 14: EURO})
+    for r in range(5, oe + 1):
+        start = f'DATE(A{r},B{r},1)'
+        end = f'EDATE({start},1)'
+        sales_sum = f'SUMIFS(Ventas!$H$5:$H${ve},Ventas!$A$5:$A${ve},">="&{start},Ventas!$A$5:$A${ve},"<"&{end})'
+        cost_sum = f'SUMIFS(Ventas!$M$5:$M${ve},Ventas!$A$5:$A${ve},">="&{start},Ventas!$A$5:$A${ve},"<"&{end})'
+        expense_sum = '+'.join(f'SUMIFS(Gastos!$F$5:$F${ge},Gastos!$A$5:$A${ge},">="&{start},Gastos!$A$5:$A${ge},"<"&{end},Gastos!$K$5:$K${ge},"{status}")' for status in ('OK', 'FUERA DE EJERCICIO'))
+        goals.cell(r, 15, f'=IF(COUNTA(A{r}:C{r},G{r},K{r})=0,"",IF(AND(ISNUMBER(A{r}),IFERROR(A{r}=INT(A{r}),FALSE),A{r}>=2000,A{r}<=2100,ISNUMBER(B{r}),IFERROR(B{r}=INT(B{r}),FALSE),B{r}>=1,B{r}<=12,COUNTIFS($A$5:$A${oe},A{r},$B$5:$B${oe},B{r})=1,OR(C{r}="",AND(ISNUMBER(C{r}),C{r}>=0)),OR(G{r}="",AND(ISNUMBER(G{r}),G{r}>=0)),OR(K{r}="",AND(ISNUMBER(K{r}),K{r}>=0))),IF(COUNT(C{r},G{r},K{r})=0,"SIN META","OK"),"REVISAR"))')
+        activity = '+'.join(f'COUNTIFS({sheet}!$A$5:$A${limit},">="&{start},{sheet}!$A$5:$A${limit},"<"&{end},{sheet}!${status_col}$5:${status_col}${limit},"{status}")' for sheet, limit, status_col in [('Ventas', ve, 'O'), ('Gastos', ge, 'K')] for status in ('OK', 'FUERA DE EJERCICIO'))
+        goals.cell(r, 16, f'=IF(OR(O{r}="OK",O{r}="SIN META"),IF({activity}=0,"SIN ACTIVIDAD","CON ACTIVIDAD"),"")')
+        goals.cell(r, 4, f'=IF(OR(O{r}="OK",O{r}="SIN META"),{sales_sum},"")')
+        goals.cell(r, 12, f'=IF(OR(O{r}="OK",O{r}="SIN META"),{expense_sum},"")')
+        goals.cell(r, 8, f'=IF(D{r}="","",D{r}-{cost_sum}-L{r})')
+        for col, target, actual, direction in [(5, 'C', 'D', 1), (9, 'G', 'H', 1), (13, 'K', 'L', -1)]:
+            if direction == 1:
+                expr = f'{actual}{r}/{target}{r}'
+            else:
+                expr = f'IF({actual}{r}=0,1,{target}{r}/{actual}{r})'
+            goals.cell(r, col, f'=IF({target}{r}="","SIN META",IF(OR({actual}{r}="",P{r}="SIN ACTIVIDAD"),"SIN DATOS",IF({target}{r}=0,"n.a.",{expr})))')
+        for col, target, actual, direction in [(6, 'C', 'D', 1), (10, 'G', 'H', 1), (14, 'K', 'L', -1)]:
+            expr = f'{actual}{r}-{target}{r}' if direction == 1 else f'{target}{r}-{actual}{r}'
+            goals.cell(r, col, f'=IF({target}{r}="","SIN META",IF(OR({actual}{r}="",P{r}="SIN ACTIVIDAD"),"SIN DATOS",{expr}))')
+    add_custom(goals, f'A5:A{oe}', 'OR(A5="",AND(ISNUMBER(A5),IFERROR(A5=INT(A5),FALSE),A5>=2000,A5<=2100))', 'Introduce un ejercicio entre 2000 y 2100.')
+    add_custom(goals, f'B5:B{oe}', 'OR(B5="",AND(ISNUMBER(B5),IFERROR(B5=INT(B5),FALSE),B5>=1,B5<=12))', 'Introduce un mes del 1 al 12.')
+    for col in ('C', 'G', 'K'):
+        add_decimal(goals, f'{col}5:{col}{oe}')
+    flag(goals, '$O5="REVISAR"', f'A5:O{oe}')
+    for col in ('E', 'I', 'M'):
+        goals.conditional_formatting.add(f'{col}5:{col}{oe}', FormulaRule(formula=[f'AND(ISNUMBER({col}5),{col}5>=1)'], fill=PatternFill('solid', fgColor=GREEN)))
+
+    style_sheet(reports, 'Informes · cifras de gestión sin IVA', ['Mes', 'Ventas netas', 'Coste producto', 'Gastos netos', 'Beneficio estimado', 'Margen'], [19, 21, 21, 21, 23, 17], 18)
+    reports['A2'] = 'Gestión por fecha de operación. Tesorería usa fecha efectiva y total con IVA; no es resultado fiscal.'
+    for row in range(5, 17):
+        reports.cell(row, 1, f'=Dashboard!C{row}').number_format = 'MMMM YYYY'
+        for col, source in [(2, 'D'), (3, 'E'), (4, 'F'), (5, 'G')]:
+            reports.cell(row, col, f'=Dashboard!{source}{row}').number_format = EURO
+        reports.cell(row, 6, f'=IF(B{row}=0,"",E{row}/B{row})').number_format = PERCENT
+    reports['A18'] = 'TOTAL ANUAL'
+    for col, source in [(2, 'B5'), (3, 'B6'), (4, 'B7'), (5, 'B8'), (6, 'B9')]:
+        reports.cell(18, col, f'=Dashboard!{source}').number_format = PERCENT if col == 6 else EURO
+    for col, label, width in [(8, 'Categoría gasto', 24), (9, 'Gasto neto', 20), (11, 'ID producto', 20), (12, 'Producto', 28), (13, 'Ventas netas', 20), (14, 'Coste estimado', 20), (15, 'Margen', 20)]:
+        reports.cell(4, col, label)
+        reports.cell(4, col).fill = PatternFill('solid', fgColor=NAVY)
+        reports.cell(4, col).font = Font(name='Aptos', bold=True, color=WHITE)
+        reports.column_dimensions[get_column_letter(col)].width = width
+    for row in range(5, 12):
+        reports.cell(row, 8, f'=Dashboard!I{row}')
+        reports.cell(row, 9, f'=Dashboard!J{row}').number_format = EURO
+    for row in range(5, pe + 1):
+        reports.cell(row, 11, f'=IF(Productos!M{row}="OK",Productos!A{row},"")')
+        reports.cell(row, 12, f'=IF(K{row}="","",Productos!B{row})')
+        for col, amount in [(13, 'H'), (14, 'M')]:
+            reports.cell(row, col, f'=IF(K{row}="","",SUMIFS(Ventas!${amount}$5:${amount}${ve},Ventas!$C$5:$C${ve},K{row},Ventas!$O$5:$O${ve},"OK"))').number_format = EURO
+        reports.cell(row, 15, f'=IF(K{row}="","",M{row}-N{row})').number_format = EURO
+    chart = BarChart()
+    chart.title = 'Evolución de ventas y beneficio · sin IVA'
+    for col in (2, 5):
+        chart.add_data(Reference(reports, min_col=col, min_row=4, max_row=16), titles_from_data=True)
+    chart.set_categories(Reference(reports, min_col=1, min_row=5, max_row=16))
+    chart.width, chart.height = 20, 10
+    reports.add_chart(chart, 'A21')
+    reports.protection = SheetProtection(sheet=True, selectLockedCells=False, selectUnlockedCells=False, autoFilter=False)
 
     style_sheet(dash, 'NEGOCIO PRO · Dashboard', ['Indicador', 'Valor', 'Mes', 'Ventas netas', 'Coste producto', 'Gastos netos', 'Beneficio estimado'], [29, 22, 19, 20, 20, 20, 23], 30)
     dash['A2'] = 'Resultado por fecha de operación · sin IVA · estimación de gestión'
@@ -258,8 +383,8 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     dash['A7'] = 'Gastos netos'
     dash['A8'] = 'Beneficio operativo estimado'
     dash['A9'] = 'Margen operativo estimado'
-    dash['B5'] = f'=SUMIFS(Ventas!$H$5:$H${ve},Ventas!$A$5:$A${ve},">="&DATE(\'Configuración\'!$B$6,1,1),Ventas!$A$5:$A${ve},"<"&DATE(\'Configuración\'!$B$6+1,1,1))'
-    dash['B6'] = f'=SUMIFS(Ventas!$M$5:$M${ve},Ventas!$A$5:$A${ve},">="&DATE(\'Configuración\'!$B$6,1,1),Ventas!$A$5:$A${ve},"<"&DATE(\'Configuración\'!$B$6+1,1,1))'
+    dash['B5'] = f'=SUMIFS(Ventas!$H$5:$H${ve},Ventas!$O$5:$O${ve},"OK",Ventas!$A$5:$A${ve},">="&DATE(\'Configuración\'!$B$6,1,1),Ventas!$A$5:$A${ve},"<"&DATE(\'Configuración\'!$B$6+1,1,1))'
+    dash['B6'] = f'=SUMIFS(Ventas!$M$5:$M${ve},Ventas!$O$5:$O${ve},"OK",Ventas!$A$5:$A${ve},">="&DATE(\'Configuración\'!$B$6,1,1),Ventas!$A$5:$A${ve},"<"&DATE(\'Configuración\'!$B$6+1,1,1))'
     dash['B7'] = f'=SUMIFS(Gastos!$F$5:$F${ge},Gastos!$K$5:$K${ge},"OK",Gastos!$A$5:$A${ge},">="&DATE(\'Configuración\'!$B$6,1,1),Gastos!$A$5:$A${ge},"<"&DATE(\'Configuración\'!$B$6+1,1,1))'
     dash['B8'] = '=B5-B6-B7'
     dash['B9'] = '=IF(B5=0,"",B8/B5)'
@@ -288,9 +413,9 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     dash.auto_filter.ref = 'C4:G16'
     dash.protection = SheetProtection(sheet=True, selectLockedCells=False, selectUnlockedCells=False)
     dash['A11'] = 'Filas para revisar'
-    dash['B11'] = f'=COUNTIF(Ventas!$O$5:$O${ve},"REVISAR")+COUNTIF(Gastos!$K$5:$K${ge},"REVISAR")+COUNTIF(Clientes!$I$5:$I${ce},"REVISAR")+COUNTIF(Proveedores!$I$5:$I${se},"REVISAR")+COUNTIF(Productos!$M$5:$M${pe},"REVISAR")+COUNTIF(Inventario!$I$5:$I${ie},"REVISAR")'
+    dash['B11'] = f'=COUNTIF(Ventas!$O$5:$O${ve},"REVISAR")+COUNTIF(Gastos!$K$5:$K${ge},"REVISAR")+COUNTIF(Clientes!$I$5:$I${ce},"REVISAR")+COUNTIF(Proveedores!$I$5:$I${se},"REVISAR")+COUNTIF(Productos!$M$5:$M${pe},"REVISAR")+COUNTIF(Inventario!$I$5:$I${ie},"REVISAR")+COUNTIF(Tesorería!$H$5:$H${te},"REVISAR")+COUNTIF(Objetivos!$O$5:$O${oe},"REVISAR")'
     dash['A12'] = 'Fuera de ejercicio'
-    dash['B12'] = f'=COUNTIF(Ventas!$O$5:$O${ve},"FUERA DE EJERCICIO")+COUNTIF(Gastos!$K$5:$K${ge},"FUERA DE EJERCICIO")'
+    dash['B12'] = f'=COUNTIF(Ventas!$O$5:$O${ve},"FUERA DE EJERCICIO")+COUNTIF(Gastos!$K$5:$K${ge},"FUERA DE EJERCICIO")+COUNTIF(Tesorería!$H$5:$H${te},"FUERA DE EJERCICIO")'
     for row, label, formula in [
         (14, 'Clientes válidos', f'=COUNTIF(Clientes!$I$5:$I${ce},"OK")'),
         (15, 'Clientes con compras', f'=COUNTIF(Clientes!$K$5:$K${ce},">0")'),
@@ -313,6 +438,15 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
         dash.cell(row, 10, f'=SUMIFS(Gastos!$F$5:$F${ge},Gastos!$C$5:$C${ge},I{row},Gastos!$K$5:$K${ge},"OK")').number_format = EURO
     dash['I14'] = 'Resultado sin IVA; no representa caja ni resultado fiscal.'
     dash['I15'] = 'Revisa las alertas antes de utilizar los indicadores.'
+    dash['I18'] = 'Saldo final de caja'
+    dash['J18'] = '=Tesorería!P16'
+    dash['J18'].number_format = EURO
+    target = f'SUMIFS(Objetivos!$C$5:$C${oe},Objetivos!$A$5:$A${oe},\'Configuración\'!$B$6,Objetivos!$O$5:$O${oe},"OK")'
+    dash['I19'] = 'Cumplimiento ventas'
+    dash['J19'] = f'=IF(COUNTIFS(Objetivos!$A$5:$A${oe},\'Configuración\'!$B$6,Objetivos!$O$5:$O${oe},"OK",Objetivos!$C$5:$C${oe},"<>")=0,"SIN META",IF({target}=0,"n.a.",B5/{target}))'
+    dash['J19'].number_format = PERCENT
+    for pos in ('J18', 'J19'):
+        dash[pos].fill = PatternFill('solid', fgColor=GREEN)
     for pos in ('B11', 'B12'):
         dash[pos].fill = PatternFill('solid', fgColor=GREEN)
         dash[pos].font = Font(name='Aptos', bold=True, color=NAVY)
@@ -322,6 +456,7 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     if demo:
         cfg['B5'] = 'Demo · negocio ficticio'
         cfg['B6'] = 2026
+        cfg['I5'], cfg['I6'] = 1000, 100
         products = [('P-001', 'Servicio de diseño', 'Servicios', 400, 90, 'Servicio', None, None),
                     ('P-002', 'Kit de bienvenida', 'Productos', 80, 35, 'Físico', 10, 4)]
         for r, row in enumerate(products, 5):
@@ -343,6 +478,16 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
                     (date(2026, 2, 9), 'G-002', 'Servicios', 'PR-002', 'Suscripción ficticia', 35, 0.21, 'FR-002')]
         for r, row in enumerate(expenses, 5):
             for col, value in zip((1, 2, 3, 4, 5, 6, 7, 10), row): gs.cell(r, col, value)
+        cash_rows = [
+            ('T-001', date(2026, 1, 22), 'Cobro', 'Cobro parcial ficticio', 500, 'Banco', 'V-001'),
+            ('T-002', date(2026, 2, 12), 'Cobro', 'Cobro total ficticio', 290.40, 'Banco', 'V-002'),
+            ('T-003', date(2026, 1, 26), 'Pago', 'Pago parcial ficticio', 100, 'Banco', 'G-001'),
+            ('T-004', date(2026, 2, 16), 'Pago', 'Pago total ficticio', 42.35, 'Efectivo', 'G-002'),
+        ]
+        for r, row in enumerate(cash_rows, 5):
+            for col, value in enumerate(row, 1): cash.cell(r, col, value)
+        for r, row in enumerate([(2026, 1, 700, 400, 130), (2026, 2, 300, 120, 40)], 5):
+            for col, value in zip((1, 2, 3, 7, 11), row): goals.cell(r, col, value)
         for r, row in enumerate([
             (date(2026, 2, 3), 'M-001', 'P-002', 'Salida', 3, 'V-002', 'Salida por venta ficticia'),
             (date(2026, 2, 10), 'M-002', 'P-002', 'Entrada', 2, 'ENT-001', 'Reposición ficticia')], 5):
@@ -360,10 +505,12 @@ def main():
     parser.add_argument('--clientes', type=int, default=200)
     parser.add_argument('--proveedores', type=int, default=200)
     parser.add_argument('--movimientos', type=int, default=500)
+    parser.add_argument('--caja', type=int, default=500)
+    parser.add_argument('--objetivos', type=int, default=120)
     args = parser.parse_args()
     for demo, name in [(False, 'negocio_pro_limpio.xlsx'), (True, 'negocio_pro_demo.xlsx')]:
         print(build(args.dist / name, demo, args.ventas, args.gastos, args.productos,
-                    args.clientes, args.proveedores, args.movimientos))
+                    args.clientes, args.proveedores, args.movimientos, args.caja, args.objetivos))
 
 
 if __name__ == '__main__':
