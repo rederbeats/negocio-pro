@@ -164,9 +164,10 @@ def test_treasury_partial_payments_and_references(demo):
     assert 'COUNTIF($A$5:$A$18,A5)=1' in t['H5'].value  # ID duplicado
     assert 'COUNTIFS(Ventas!$B$5:$B$18,G5' in t['H5'].value  # venta inexistente
     assert 'COUNTIFS(Gastos!$B$5:$B$18,G5' in t['H5'].value  # gasto inexistente
-    assert '<=SUMIFS(Ventas!$K$5:$K$18' in t['H5'].value  # no cobrar más que total
-    assert '<=SUMIFS(Gastos!$I$5:$I$18' in t['H5'].value  # no pagar más que total
-    assert 'SUMIFS($E$5:$E$18,$G$5:$G$18,G5,$C$5:$C$18,C5)' in t['H5'].value
+    assert 'E5+0<=SUMIFS(Ventas!$K$5:$K$18' in t['H5'].value  # no cobrar más que total
+    assert 'E5+0<=SUMIFS(Gastos!$I$5:$I$18' in t['H5'].value  # no pagar más que total
+    assert 'E6+SUMIFS($I$5:I5,$G$5:G5,G6)' in t['H6'].value
+    assert 'E6+SUMIFS($J$5:J5,$G$5:G5,G6)' in t['H6'].value
     assert 'Tesorería!$I$5:$I$18' in v['P5'].value
     assert 'Tesorería!$J$5:$J$18' in g['L5'].value
     assert v['Q5'].value == '=IF(K5="","",K5-P5)'

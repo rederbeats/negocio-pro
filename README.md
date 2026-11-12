@@ -1,6 +1,8 @@
-# NEGOCIO PRO
+# NEGOCIO PRO · NEXORA
 
 Generador reproducible de una plantilla Excel para gestión de pequeños negocios españoles. Incluye **12 hojas**: Instrucciones, Dashboard, Ventas, Gastos, Productos, Clientes, Proveedores, Inventario, Tesorería, Objetivos, Informes y Configuración. Instrucciones se abre primero y permite empezar sin conocer fórmulas de Excel.
+
+Los archivos para el comprador están en [`release/`](release/). `dist/` contiene la salida directa y reproducible de `openpyxl`; los libros de `release/` se recalcularon con LibreOffice y pasaron la comparación estructural indicada en [`release/VERIFICACIONES.md`](release/VERIFICACIONES.md).
 
 ## Generación
 
@@ -32,7 +34,7 @@ Los desplegables usan rangos con nombre. Las fechas deben ser fechas reales de E
 
 Para la demo, la conciliación esperada con aritmética independiente es: venta V-001, total con IVA 871,20 €, cobrado 500 €, pendiente 371,20 €; gasto G-001, total con IVA 145,20 €, pagado 100 €, pendiente 45,20 €. Caja: saldo inicial 1.100 €, cobros 790,40 €, pagos 142,35 € y saldo final 1.748,05 €. La meta anual de ventas introducida es 1.000 €, por lo que el cumplimiento esperado es 96 %. Comprueba estos valores tras recalcular en Excel.
 
-`openpyxl` escribe fórmulas y no calcula sus resultados. Las pruebas comprueban estructura, referencias, fórmulas, protecciones y, con aritmética Python independiente, los importes esperados de los datos demo. **No confirman que Excel haya evaluado las fórmulas ni el funcionamiento interactivo de desplegables y protección.** No había Excel ni LibreOffice disponibles en el entorno de generación. Antes de distribuir, abre cada libro en Excel moderno, fuerza recálculo completo (`Ctrl+Alt+F9`), guarda y verifica en la demo: ventas netas **960,00 €**, coste de producto **285,00 €**, gastos netos **155,00 €**, beneficio estimado **520,00 €** y margen **54,17 %**. Enero: ventas 720 €, coste 180 €, gastos 120 €, beneficio 420 €. Febrero: ventas 240 €, coste 105 €, gastos 35 €, beneficio 100 €. Los otros diez meses deben ser cero. Verifica además **2 clientes con compras**, **2 proveedores válidos** y stock disponible **9** del producto P-002 (10 inicial − 3 salida + 2 entrada). Comprueba entradas, desplegables, filtros, alertas y protección en la interfaz. Un motor compatible como LibreOffice puede automatizar un recálculo, pero hay que contrastar los resultados y el diseño en Excel antes de distribuir.
+`openpyxl` escribe fórmulas y no calcula sus resultados. Esta versión se recalculó con **LibreOffice** en copias de ambos libros. La demo produjo ventas netas **960,00 €**, coste de producto **285,00 €**, gastos netos **155,00 €**, beneficio estimado **520,00 €**, margen **54,17 %** y caja final **1.748,05 €**. No se hallaron errores de fórmula calculados. La comparación posterior confirmó que se conservaron las validaciones, protecciones, filtros, gráficos y nombres definidos; LibreOffice normalizó algunos códigos de formato numérico. Estas comprobaciones **no demuestran equivalencia visual ni funcionamiento interactivo en Microsoft Excel**. Antes de vender, abre ambos libros en Excel, fuerza recálculo completo (`Ctrl+Alt+F9`), guarda y confirma la demo: enero, ventas 720 €, coste 180 €, gastos 120 €, beneficio 420 €; febrero, ventas 240 €, coste 105 €, gastos 35 €, beneficio 100 €; los otros diez meses, cero. Verifica también **2 clientes con compras**, **2 proveedores válidos**, stock **9** de P-002, desplegables, filtros, alertas, enlaces y protección.
 
 Google Sheets puede importar el libro, pero sus validaciones, protección, gráficos, filtros o formato pueden comportarse de otra manera. No se garantiza equivalencia total.
 

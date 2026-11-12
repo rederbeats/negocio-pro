@@ -196,6 +196,8 @@ def instructions_sheet(ws, demo):
     ws.merge_cells('B27:G27')
     ws['B27'] = 'Cifras de gestión, no contabilidad certificada ni cálculo fiscal.'
     ws['B27'].font = Font(name='Aptos', size=10, italic=True, color=NAVY)
+    ws['G28'] = 'NEXORA'
+    ws['G28'].font = Font(name='Aptos', size=10, bold=True, color=NAVY)
     ws.merge_cells('B29:G29')
     ws['B29'] = 'Ir directamente a una hoja'
     ws['B29'].font = Font(name='Aptos', size=13, bold=True, color=NAVY)
@@ -221,6 +223,9 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
         raise ValueError('Cada capacidad debe ser al menos 2')
     output.parent.mkdir(parents=True, exist_ok=True)
     wb = Workbook()
+    wb.properties.creator = 'NEXORA'
+    wb.properties.title = 'NEGOCIO PRO'
+    wb.properties.subject = 'Gestión empresarial en Excel'
     dash = wb.active
     dash.title = 'Dashboard'
     intro = wb.create_sheet('Instrucciones', 0)
@@ -245,7 +250,7 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     cfg['A6'], cfg['B6'] = 'Ejercicio', 2026
     cfg['A7'], cfg['B7'] = 'Moneda', 'EUR'
     cfg['A8'], cfg['B8'] = 'Ejercicio saldo inicial', 2026
-    cfg['A9'] = 'Entradas: amarillo claro · Cálculos: blanco/gris'
+    cfg['A9'] = 'Entradas: verde claro · Cálculos: blanco/gris'
     cfg['A10'] = 'Todos los importes de operación se introducen sin IVA.'
     cfg['A11'] = 'Demo: datos ficticios; no usar para decisiones reales.' if demo else 'Plantilla limpia: introduce tus datos en las hojas de entrada.'
     for i, cat in enumerate(['Material', 'Alquiler', 'Servicios', 'Marketing', 'Transporte', 'Personal', 'Otros'], 5):
@@ -358,7 +363,7 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     flag(inv, '$I5="REVISAR"', f'A5:I{ie}')
 
     style_sheet(vs, 'Ventas · importes sin IVA', ['Fecha', 'ID venta', 'ID producto', 'Cliente ID', 'Cantidad', 'Precio unit. neto', 'Descuento %', 'Base neta', 'IVA %', 'IVA repercutido', 'Total con IVA', 'Coste unit. neto', 'Coste estimado', 'Referencia', 'Estado', 'Cobrado', 'Pendiente'], [16, 18, 18, 18, 13, 21, 16, 20, 13, 21, 21, 21, 20, 21, 21, 20, 20], ve)
-    vs['A2'] = 'Amarillo: entrada · blanco/gris: cálculo · Estado REVISAR/FUERA: no entra en Dashboard. Precio y coste son históricos.'
+    vs['A2'] = 'Verde claro: entrada · blanco/gris: cálculo · REVISAR/FUERA no entra en Dashboard. Precio y coste son históricos.'
     format_body(vs, 5, ve, 17, {1, 2, 3, 4, 5, 6, 7, 9, 12, 14}, {1: DATE, 6: EURO, 7: PERCENT, 8: EURO, 9: PERCENT, 10: EURO, 11: EURO, 12: EURO, 13: EURO, 16: EURO, 17: EURO})
     for r in range(5, ve + 1):
         vs.cell(r, 15, f'=IF(COUNTA(A{r}:G{r},I{r},L{r},N{r})=0,"",IF(AND(ISNUMBER(A{r}),ISNUMBER(E{r}),E{r}>0,ISNUMBER(F{r}),F{r}>=0,ISNUMBER(G{r}),G{r}>=0,G{r}<=1,ISNUMBER(I{r}),COUNTIF(TiposIVA,I{r})=1,ISNUMBER(L{r}),L{r}>=0,B{r}<>"",COUNTIF($B$5:$B${ve},B{r})=1,C{r}<>"",COUNTIF(IdsProducto,C{r})=1,COUNTIFS(Productos!$A$5:$A${pe},C{r},Productos!$M$5:$M${pe},"OK")=1,OR(D{r}="",COUNTIFS(Clientes!$A$5:$A${ce},D{r},Clientes!$I$5:$I${ce},"OK")=1)),IF(YEAR(A{r})=\'Configuración\'!$B$6,"OK","FUERA DE EJERCICIO"),"REVISAR"))')
@@ -383,7 +388,7 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     flag(vs, '$O5="FUERA DE EJERCICIO"', f'O5:O{ve}')
 
     style_sheet(gs, 'Gastos · importes sin IVA', ['Fecha', 'ID gasto', 'Categoría', 'Proveedor ID', 'Concepto', 'Base neta', 'IVA %', 'IVA soportado', 'Total con IVA', 'Referencia', 'Estado', 'Pagado', 'Pendiente'], [16, 18, 22, 19, 34, 19, 13, 20, 20, 20, 21, 20, 20], ge)
-    gs['A2'] = 'Amarillo: entrada · blanco/gris: cálculo · Estado REVISAR/FUERA: no entra en Dashboard.'
+    gs['A2'] = 'Verde claro: entrada · blanco/gris: cálculo · REVISAR/FUERA no entra en Dashboard.'
     format_body(gs, 5, ge, 13, {1, 2, 3, 4, 5, 6, 7, 10}, {1: DATE, 6: EURO, 7: PERCENT, 8: EURO, 9: EURO, 12: EURO, 13: EURO})
     for r in range(5, ge + 1):
         gs.cell(r, 11, f'=IF(COUNTA(A{r}:G{r},J{r})=0,"",IF(AND(ISNUMBER(A{r}),B{r}<>"",COUNTIF($B$5:$B${ge},B{r})=1,C{r}<>"",COUNTIF(CategoriasGasto,C{r})=1,ISNUMBER(F{r}),F{r}>=0,ISNUMBER(G{r}),COUNTIF(TiposIVA,G{r})=1,OR(D{r}="",COUNTIFS(Proveedores!$A$5:$A${se},D{r},Proveedores!$I$5:$I${se},"OK")=1)),IF(YEAR(A{r})=\'Configuración\'!$B$6,"OK","FUERA DE EJERCICIO"),"REVISAR"))')
@@ -409,8 +414,9 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
         expense_ok = f'COUNTIFS(Gastos!$B$5:$B${ge},G{r},Gastos!$K$5:$K${ge},"OK")+COUNTIFS(Gastos!$B$5:$B${ge},G{r},Gastos!$K$5:$K${ge},"FUERA DE EJERCICIO")=1'
         sale_total = f'SUMIFS(Ventas!$K$5:$K${ve},Ventas!$B$5:$B${ve},G{r})'
         expense_total = f'SUMIFS(Gastos!$I$5:$I${ge},Gastos!$B$5:$B${ge},G{r})'
-        linked_total = f'SUMIFS($E$5:$E${te},$G$5:$G${te},G{r},$C$5:$C${te},C{r})'
-        cash.cell(r, 8, f'=IF(COUNTA(A{r}:G{r})=0,"",IF(AND(A{r}<>"",COUNTIF($A$5:$A${te},A{r})=1,ISNUMBER(B{r}),COUNTIF(TiposCaja,C{r})=1,D{r}<>"",ISNUMBER(E{r}),E{r}>0,COUNTIF(CuentasCaja,F{r})=1,COUNTIFS(\'Configuración\'!$H$5:$H$14,F{r},\'Configuración\'!$I$5:$I$14,"<>")=1,IF(G{r}="",TRUE,IF(C{r}="Cobro",AND({sale_ok},{linked_total}<={sale_total}),AND({expense_ok},{linked_total}<={expense_total})))),IF(YEAR(B{r})=\'Configuración\'!$B$6,"OK","FUERA DE EJERCICIO"),"REVISAR"))')
+        prior_in = '0' if r == 5 else f'SUMIFS($I$5:I{r-1},$G$5:G{r-1},G{r})'
+        prior_out = '0' if r == 5 else f'SUMIFS($J$5:J{r-1},$G$5:G{r-1},G{r})'
+        cash.cell(r, 8, f'=IF(COUNTA(A{r}:G{r})=0,"",IF(AND(A{r}<>"",COUNTIF($A$5:$A${te},A{r})=1,ISNUMBER(B{r}),COUNTIF(TiposCaja,C{r})=1,D{r}<>"",ISNUMBER(E{r}),E{r}>0,COUNTIF(CuentasCaja,F{r})=1,COUNTIFS(\'Configuración\'!$H$5:$H$14,F{r},\'Configuración\'!$I$5:$I$14,"<>")=1,IF(G{r}="",TRUE,IF(C{r}="Cobro",AND({sale_ok},E{r}+{prior_in}<={sale_total}),AND({expense_ok},E{r}+{prior_out}<={expense_total})))),IF(YEAR(B{r})=\'Configuración\'!$B$6,"OK","FUERA DE EJERCICIO"),"REVISAR"))')
         cash.cell(r, 9, f'=IF(AND(OR(H{r}="OK",H{r}="FUERA DE EJERCICIO"),C{r}="Cobro"),E{r},"")')
         cash.cell(r, 10, f'=IF(AND(OR(H{r}="OK",H{r}="FUERA DE EJERCICIO"),C{r}="Pago"),E{r},"")')
     add_custom(cash, f'A5:A{te}', f'OR(A5="",COUNTIF($A$5:$A${te},A5)=1)', 'El ID de caja debe ser único.')
@@ -496,7 +502,7 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     reports.add_chart(chart, 'A21')
     reports.protection = SheetProtection(sheet=True, selectLockedCells=False, selectUnlockedCells=False, autoFilter=False)
 
-    style_sheet(dash, 'NEGOCIO PRO · Dashboard', ['Indicador', 'Valor', 'Mes', 'Ventas netas', 'Coste producto', 'Gastos netos', 'Beneficio estimado'], [29, 22, 19, 20, 20, 20, 23], 30)
+    style_sheet(dash, 'NEGOCIO PRO · Panel de gestión  |  NEXORA', ['Indicador', 'Valor', 'Mes', 'Ventas netas', 'Coste producto', 'Gastos netos', 'Beneficio estimado'], [29, 22, 19, 20, 20, 20, 23], 30)
     dash['A2'] = 'Resultado por fecha de operación · sin IVA · estimación de gestión'
     dash['A5'] = 'Facturación neta'
     dash['A6'] = 'Coste de producto estimado'

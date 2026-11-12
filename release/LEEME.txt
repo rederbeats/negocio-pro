@@ -1,0 +1,25 @@
+NEXORA · NEGOCIO PRO
+Guía rápida para el comprador
+
+ARCHIVOS
+- negocio_pro_limpio.xlsx: empieza aquí con tu negocio.
+- negocio_pro_demo.xlsx: ejemplo con datos totalmente inventados. Úsalo para practicar; no añadas aquí datos reales.
+
+PRIMEROS PASOS
+1. Abre negocio_pro_limpio.xlsx en Microsoft Excel. La primera hoja, Instrucciones, te guía en menos de cinco minutos.
+2. En Configuración, escribe el nombre de tu negocio, el ejercicio y el saldo inicial de cada cuenta. Confirma que «Ejercicio saldo inicial» coincide con el año elegido.
+3. Añade productos con un ID único. Después registra ventas y gastos en las celdas verde claro.
+4. Si vendes un producto físico, registra una única Salida en Inventario con una referencia única. La venta no descuenta stock automáticamente.
+5. Anota los cobros y pagos efectivos en Tesorería, con IVA y su fecha real. Puedes registrar importes parciales.
+6. Consulta el Dashboard e Informes. Corrige las filas marcadas REVISAR antes de usar los indicadores.
+
+IMPORTES Y RESULTADO
+Ventas, gastos y objetivos usan importes sin IVA. Tesorería registra el dinero que entra o sale, con IVA. El beneficio estimado puede ser distinto del dinero disponible en caja: una venta pendiente de cobro aumenta las ventas, pero todavía no la caja.
+
+AL CAMBIAR DE EJERCICIO
+Los cobros y pagos pendientes mantienen su referencia. Revisa los saldos iniciales de Banco, Efectivo y otras cuentas. Si el año del saldo inicial no coincide, el Panel mostrará REVISAR SALDO hasta que lo actualices.
+
+COMPATIBILIDAD Y ALCANCE
+Usa Microsoft Excel moderno para la comprobación final de fórmulas y controles. La importación en Google Sheets puede cambiar validaciones, protección, gráficos o formato. NEGOCIO PRO es una herramienta de gestión; no es software contable certificado ni un sistema de cumplimiento fiscal.
+
+Ayuda dentro del archivo: abre la hoja Instrucciones.
