@@ -9,11 +9,14 @@ La primera versión contiene Dashboard, Ventas, Gastos, Productos y Configuraci�
 ```text
 Configuración ──> listas de categorías y tipos IVA (validación)
 Productos ──────> Ventas (ID de producto; validación de existencia)
+Configuración ──> Ventas y Gastos (ejercicio y rangos con nombre)
 Ventas ─────────> Dashboard (ventas netas, coste estimado y evolución)
 Gastos ─────────> Dashboard (gastos netos y evolución)
 ```
 
 Ventas conserva precio unitario, coste unitario y tipo de IVA **como datos de la operación**. El catálogo no altera ventas históricas al cambiar un precio o coste. La validación avisa de un ID de producto inexistente; no se calcula automáticamente un precio de catálogo para evitar cambios retroactivos.
+
+Cada operación tiene una fórmula de Estado. `OK` requiere fecha válida del ejercicio, ID único, referencias válidas y entradas numéricas dentro de los límites. `REVISAR` identifica filas incompletas o inconsistentes; `FUERA DE EJERCICIO` identifica operaciones válidas de otro año. Solo `OK` alimenta importes calculados y agregados del Dashboard. Los contadores del Dashboard muestran las filas excluidas, evitando indicadores aparentemente completos cuando hay errores. Las validaciones de Excel ayudan a prevenir entradas, mientras que Estado también detecta datos pegados, cambios posteriores en catálogos y duplicaciones.
 
 ## Definiciones financieras
 
@@ -31,3 +34,5 @@ Clientes y Proveedores tendrán ID únicos; sus ID opcionales en operaciones se 
 ## Capacidad y compatibilidad
 
 Las plantillas preparan 500 filas de ventas, 500 de gastos y 200 productos. Para ampliar, el generador acepta `--ventas`, `--gastos` y `--productos`; se regenera el libro y se trasladan los datos de entrada. Recalcular en Excel antes de usar los indicadores. Google Sheets puede importar el archivo, pero pueden cambiar validaciones, protección, gráficos y formato; no se promete equivalencia.
+
+La prueba automatizada no sustituye el recálculo ni las pruebas interactivas en Excel. La protección de hoja permite selección y filtros; la ordenación de rangos protegidos puede no funcionar en todas las versiones. Las listas usan rangos con nombre para evitar referencias directas a otra hoja en validación de datos.
