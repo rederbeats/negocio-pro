@@ -11,7 +11,7 @@ from negocio_pro import build
 
 @pytest.fixture
 def demo(tmp_path):
-    return load_workbook(build(tmp_path / 'demo.xlsx', demo=True, ventas=14, gastos=14, productos=3))
+    return load_workbook(build(tmp_path / 'demo.xlsx', demo=True, ventas=14, gastos=14, productos=3, clientes=3, proveedores=3, movimientos=14))
 
 
 def validation(ws, kind):
@@ -19,8 +19,8 @@ def validation(ws, kind):
 
 
 def test_outputs_and_demo(tmp_path, demo):
-    clean = load_workbook(build(tmp_path / 'clean.xlsx', ventas=14, gastos=14, productos=3))
-    expected = ['Dashboard', 'Ventas', 'Gastos', 'Productos', 'Configuración']
+    clean = load_workbook(build(tmp_path / 'clean.xlsx', ventas=14, gastos=14, productos=3, clientes=3, proveedores=3, movimientos=14))
+    expected = ['Dashboard', 'Ventas', 'Gastos', 'Productos', 'Clientes', 'Proveedores', 'Inventario', 'Configuración']
     assert demo.sheetnames == clean.sheetnames == expected
     assert demo['Ventas']['B5'].value == 'V-001'
     assert clean['Ventas']['B5'].value is None
@@ -107,3 +107,51 @@ def test_demo_expected_independent_arithmetic(demo):
 def test_invalid_capacity(tmp_path):
     with pytest.raises(ValueError):
         build(tmp_path / 'x.xlsx', ventas=1)
+
+
+def test_optional_and_invalid_entity_references(demo):
+    v, g, c, s = (demo[x] for x in ('Ventas', 'Gastos', 'Clientes', 'Proveedores'))
+    assert 'OR(D5="",COUNTIFS(Clientes!' in v['O5'].value
+    assert 'OR(D5="",COUNTIFS(Proveedores!' in g['K5'].value
+    assert 'Clientes!$I$5:$I$7,"OK"' in v['O5'].value
+    assert 'Proveedores!$I$5:$I$7,"OK"' in g['K5'].value
+    assert 'COUNTIF($A$5:$A$7,A5)=1' in c['I5'].value
+    assert 'COUNTIF($A$5:$A$7,A5)=1' in s['I5'].value
+    assert 'IdsCliente' in demo.defined_names and 'IdsProveedor' in demo.defined_names
+    assert any('D5:D18' in str(x.sqref) and 'IdsCliente' in x.formula1 for x in validation(v, 'custom'))
+    assert any('D5:D18' in str(x.sqref) and 'IdsProveedor' in x.formula1 for x in validation(g, 'custom'))
+    assert 'SUMIFS(Ventas!' in c['J5'].value and 'COUNTIFS(Ventas!' in c['K5'].value
+    assert 'SUMIFS(Gastos!' in s['J5'].value
+    assert c['C5'].value.endswith('.invalid') and s['D5'].value.endswith('.invalid')
+
+
+def test_stock_integrity_and_service_exclusion(demo):
+    p, m, d = (demo[x] for x in ('Productos', 'Inventario', 'Dashboard'))
+    assert p['H5'].value == 'Servicio' and p['H6'].value == 'Físico'
+    assert p['I6'].value == 10 and p['J6'].value == 4
+    assert m['D5'].value == 'Salida' and m['E5'].value == 3
+    assert m['D6'].value == 'Entrada' and m['E6'].value == 2
+    assert 10 - 3 + 2 == 9  # stock demo esperado, fuente independiente
+    assert 'COUNTIF($B$5:$B$18,B5)=1' in m['I5'].value  # movimientos repetidos
+    assert 'COUNTIFS($D$5:$D$18,"Salida",$F$5:$F$18,F5)=1' in m['I5'].value
+    assert 'COUNTIF(IdsProducto,C5)=1' in m['I5'].value  # producto inexistente
+    assert '"Físico"' in m['I5'].value  # servicios no admiten movimientos
+    assert 'I5<>"OK"' in m['H5'].value  # movimiento inválido no altera stock
+    assert 'SUMIFS(Inventario!$H$5:$H$18' in p['K6'].value
+    assert 'K6<0,"NEGATIVO"' in p['L6'].value
+    assert 'K6<J6,"BAJO"' in p['L6'].value
+    assert '"NEGATIVO"' in d['B18'].value and '"BAJO"' in d['B17'].value
+    assert all('Inventario!' not in d[x].value for x in ('B5', 'B6', 'B7', 'B8'))
+
+
+def test_new_sheets_protection_and_dashboard(demo):
+    for name, editable, calculated in [('Clientes', 'B5', 'I5'), ('Proveedores', 'B5', 'I5'), ('Inventario', 'E5', 'H5')]:
+        ws = demo[name]
+        assert ws.protection.sheet and not ws.protection.autoFilter
+        assert not ws[editable].protection.locked and ws[calculated].protection.locked
+        assert ws.freeze_panes == 'A5' and ws.auto_filter.ref.startswith('A4:')
+    d = demo['Dashboard']
+    assert 'Clientes!' in d['B14'].value and 'Clientes!' in d['B15'].value
+    assert 'Proveedores!' in d['B16'].value
+    assert 'Productos!' in d['B17'].value and 'Productos!' in d['B18'].value
+    assert 'SUMIFS(Gastos!' in d['J5'].value
