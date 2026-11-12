@@ -71,7 +71,11 @@ def test_formula_tokens_and_links_are_intact(tmp_path):
                 if cell.hyperlink and cell.hyperlink.location:
                     target = cell.hyperlink.location.split('!')[0].strip("'")
                     assert target in book.sheetnames
-    assert book.properties.creator == 'NEXORA'
+    assert book.properties.creator == 'VALENCIA LABS'
+    assert book['Instrucciones']['B2'].value == 'NEGOCIO PRO | by VALENCIA LABS'
+    assert book['Dashboard']['I2'].value == 'by VALENCIA LABS'
+    old_brand = 'NEX' + 'ORA'
+    assert all(old_brand not in str(c.value) for ws in book for row in ws for c in row)
     assert book.properties.title == 'NEGOCIO PRO'
 
 

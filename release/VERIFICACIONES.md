@@ -1,10 +1,12 @@
-# Verificaciones de la edición NEXORA · NEGOCIO PRO
+# Verificaciones de la edición VALENCIA LABS · NEGOCIO PRO
 
 Fecha de auditoría: 12/11/2026.
 
 ## Realizadas
 
 - Suite de pytest completa: **24 pruebas superadas** (incluye escenarios recalculados con LibreOffice; actualizar el número si se repite la auditoría).
+- Revisión de marca: textos, propiedades y XML interno de los cuatro XLSX (`dist` y `release`) usan VALENCIA LABS; no quedan referencias a la marca anterior. NEGOCIO PRO conserva su nombre.
+- Las 13.069 fórmulas de cada libro generado son idénticas a las de la versión anterior al cambio de marca; se mantuvieron las 12 hojas y los nombres de archivo.
 - Se generaron las versiones limpia y demo desde el mismo código de `main` y se recalcularon copias con LibreOffice **26.2.6.3** instalado localmente. Los XLSX de esta carpeta son copias exactas de esas versiones recalculadas.
 - La demo recalculada mostró 960 € de ventas netas, 285 € de coste de producto, 155 € de gastos netos, 520 € de beneficio estimado, margen 54,17 %, caja final 1.748,05 € y cumplimiento de ventas 96 %.
 - Una prueba con cobro excesivo en 2027 marcó solo el movimiento nuevo como `REVISAR`; el cobro previo siguió válido y el pendiente permaneció en 371,20 €.

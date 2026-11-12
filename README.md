@@ -1,6 +1,8 @@
-# NEGOCIO PRO · NEXORA
+# NEGOCIO PRO · VALENCIA LABS
 
 Generador reproducible de una plantilla Excel para gestión de pequeños negocios españoles. Incluye **12 hojas**: Instrucciones, Dashboard, Ventas, Gastos, Productos, Clientes, Proveedores, Inventario, Tesorería, Objetivos, Informes y Configuración. Instrucciones se abre primero y permite empezar sin conocer fórmulas de Excel.
+
+**VALENCIA LABS** es la marca comercial; **NEGOCIO PRO** es el nombre del producto. El cambio de marca no altera el esquema de datos ni los cálculos.
 
 Los archivos para el comprador están en [`release/`](release/). `dist/` contiene la salida directa y reproducible de `openpyxl`; los libros de `release/` se recalcularon con LibreOffice y pasaron la comparación estructural indicada en [`release/VERIFICACIONES.md`](release/VERIFICACIONES.md).
 

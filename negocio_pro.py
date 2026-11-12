@@ -132,7 +132,7 @@ def instructions_sheet(ws, demo):
         ws.column_dimensions[col].width = width
     ws.merge_cells('B2:G3')
     title = ws['B2']
-    title.value = 'NEGOCIO PRO  |  Empieza aquí'
+    title.value = 'NEGOCIO PRO | by VALENCIA LABS'
     title.font = Font(name='Aptos Display', size=22, bold=True, color=WHITE)
     title.fill = PatternFill('solid', fgColor=NAVY)
     title.alignment = Alignment(vertical='center', indent=1)
@@ -196,7 +196,7 @@ def instructions_sheet(ws, demo):
     ws.merge_cells('B27:G27')
     ws['B27'] = 'Cifras de gestión, no contabilidad certificada ni cálculo fiscal.'
     ws['B27'].font = Font(name='Aptos', size=10, italic=True, color=NAVY)
-    ws['G28'] = 'NEXORA'
+    ws['G28'] = 'VALENCIA LABS'
     ws['G28'].font = Font(name='Aptos', size=10, bold=True, color=NAVY)
     ws.merge_cells('B29:G29')
     ws['B29'] = 'Ir directamente a una hoja'
@@ -223,7 +223,7 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
         raise ValueError('Cada capacidad debe ser al menos 2')
     output.parent.mkdir(parents=True, exist_ok=True)
     wb = Workbook()
-    wb.properties.creator = 'NEXORA'
+    wb.properties.creator = 'VALENCIA LABS'
     wb.properties.title = 'NEGOCIO PRO'
     wb.properties.subject = 'Gestión empresarial en Excel'
     dash = wb.active
@@ -502,7 +502,9 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     reports.add_chart(chart, 'A21')
     reports.protection = SheetProtection(sheet=True, selectLockedCells=False, selectUnlockedCells=False, autoFilter=False)
 
-    style_sheet(dash, 'NEGOCIO PRO · Panel de gestión  |  NEXORA', ['Indicador', 'Valor', 'Mes', 'Ventas netas', 'Coste producto', 'Gastos netos', 'Beneficio estimado'], [29, 22, 19, 20, 20, 20, 23], 30)
+    style_sheet(dash, 'NEGOCIO PRO · Panel de gestión', ['Indicador', 'Valor', 'Mes', 'Ventas netas', 'Coste producto', 'Gastos netos', 'Beneficio estimado'], [29, 22, 19, 20, 20, 20, 23], 30)
+    dash['I2'] = 'by VALENCIA LABS'
+    dash['I2'].font = Font(name='Aptos', size=10, bold=True, color=NAVY)
     dash['A2'] = 'Resultado por fecha de operación · sin IVA · estimación de gestión'
     dash['A5'] = 'Facturación neta'
     dash['A6'] = 'Coste de producto estimado'
