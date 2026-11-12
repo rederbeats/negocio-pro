@@ -1,8 +1,8 @@
-# NEGOCIO PRO — arquitectura de datos (v0.3)
+# NEGOCIO PRO — arquitectura de datos (v0.4)
 
 ## Alcance y grano
 
-El libro contiene Dashboard, Ventas, Gastos, Productos, Clientes, Proveedores, Inventario, Tesorería, Objetivos, Informes y Configuración. Cada fila de Ventas representa **una línea de venta**; varias líneas de una factura pueden compartir referencia documental, pero cada línea tiene un ID único. Cada fila de Gastos representa un gasto. Los ID de producto, cliente, proveedor y movimiento son únicos en sus hojas. Tesorería y Objetivos también exigen IDs o claves compuestas únicas.
+El libro contiene Instrucciones como primera hoja, seguida de Dashboard, Ventas, Gastos, Productos, Clientes, Proveedores, Inventario, Tesorería, Objetivos, Informes y Configuración. Cada fila de Ventas representa **una línea de venta**; varias líneas de una factura pueden compartir referencia documental, pero cada línea tiene un ID único. Cada fila de Gastos representa un gasto. Los ID de producto, cliente, proveedor y movimiento son únicos en sus hojas. Tesorería y Objetivos también exigen IDs o claves compuestas únicas.
 
 ## Relaciones y dependencias
 
@@ -22,6 +22,7 @@ Tesorería ──────> Ventas y Gastos (importes cobrados/pagados y pend
 Dashboard ──────> Informes (mismos agregados mensuales y anuales)
 Ventas y Gastos ──> Objetivos (real por año y mes; metas independientes)
 Tesorería y Objetivos ──> Dashboard (saldo y cumplimiento)
+Instrucciones ──> navegación a las hojas (enlaces internos; no afecta cálculos)
 ```
 
 Ventas conserva precio unitario, coste unitario y tipo de IVA **como datos de la operación**. El catálogo no altera ventas históricas al cambiar un precio o coste. La validación avisa de un ID de producto inexistente; no se calcula automáticamente un precio de catálogo para evitar cambios retroactivos. Un ID de cliente/proveedor en blanco es válido; uno informado debe apuntar a una fila válida y única. Los campos de contacto son opcionales; los emails informados reciben una comprobación básica de forma, no de entregabilidad. Las fichas con situación Inactivo siguen siendo referencias válidas para conservar operaciones históricas.
@@ -38,7 +39,7 @@ Productos distingue `Físico`, `Servicio` y `Sin control`. Solo `Físico` admite
 
 Cada fila de Tesorería es un cobro o pago efectivo, con ID único, fecha efectiva, cuenta, importe **con IVA** y referencia opcional al ID de línea de venta o gasto. Una referencia informada debe existir y corresponder al tipo: Cobro → Ventas; Pago → Gastos. Se permiten varias filas para pagos parciales. La suma de importes de un mismo tipo y referencia no puede superar el total de la operación con IVA. La comprobación usa todos los movimientos introducidos para esa referencia; si hay duplicados o un exceso, las filas afectadas quedan en `REVISAR` y no entran en caja. Los movimientos sin referencia son cobros o pagos independientes que tampoco alteran el resultado operativo.
 
-Ventas y Gastos muestran cobrado/pagado y pendiente como diferencia contra su total con IVA. Una venta o gasto de otro ejercicio mantiene su total calculado y puede conciliarse con movimientos de caja del ejercicio actual. Los agregados de gestión filtran por fecha de operación y estado `OK` del ejercicio elegido; la caja filtra por fecha efectiva. Cambiar de ejercicio exige actualizar manualmente los saldos iniciales de cada cuenta en Configuración. El saldo final de Tesorería = suma de saldos iniciales + cobros − pagos del ejercicio. No es beneficio. No se hace conciliación bancaria automática, ni se modelan transferencias entre cuentas como un tipo especial.
+Ventas y Gastos muestran cobrado/pagado y pendiente como diferencia contra su total con IVA. Una venta o gasto de otro ejercicio mantiene su total calculado y puede conciliarse con movimientos de caja del ejercicio actual. Los agregados de gestión filtran por fecha de operación y estado `OK` del ejercicio elegido; la caja filtra por fecha efectiva. Los cobros y pagos válidos de otros ejercicios permanecen calculados para conservar los pendientes. Los saldos iniciales de cada cuenta son manuales y tienen un **ejercicio de referencia** en Configuración B8. Si B8 difiere del ejercicio activo B6, los saldos finales por cuenta y el saldo mensual de caja se dejan en blanco; el Dashboard muestra `REVISAR SALDO`. El usuario debe actualizar las cifras iniciales y B8 juntos. El saldo final de Tesorería = suma de saldos iniciales + cobros − pagos del ejercicio. No es beneficio. No se hace conciliación bancaria automática, ni se modelan transferencias entre cuentas como un tipo especial.
 
 ## Objetivos e Informes
 
@@ -46,7 +47,7 @@ Objetivos almacena una fila por clave `(ejercicio, mes)`, con tres metas opciona
 
 Informes vincula sus doce meses y su total anual directamente al Dashboard para evitar dobles reglas de agregación. El desglose por categoría enlaza el resumen del Dashboard; el de producto suma las ventas válidas del ejercicio. Todo es cifra de gestión sin IVA. Tesorería muestra caja con IVA. Ninguna de esas cifras es una liquidación fiscal.
 
-Cada operación tiene una fórmula de Estado. `OK` requiere fecha válida del ejercicio, ID único, referencias válidas y entradas numéricas dentro de los límites. `REVISAR` identifica filas incompletas o inconsistentes; `FUERA DE EJERCICIO` identifica operaciones válidas de otro año. Solo `OK` alimenta importes calculados y agregados del Dashboard. Los contadores del Dashboard muestran las filas excluidas, evitando indicadores aparentemente completos cuando hay errores. Las validaciones de Excel ayudan a prevenir entradas, mientras que Estado también detecta datos pegados, cambios posteriores en catálogos y duplicaciones.
+Cada operación tiene una fórmula de Estado. `OK` requiere fecha válida del ejercicio, ID único, referencias válidas y entradas numéricas dentro de los límites. `REVISAR` identifica filas incompletas o inconsistentes; `FUERA DE EJERCICIO` identifica operaciones válidas de otro año. Las operaciones válidas de ambos estados conservan importes calculados; solo `OK` alimenta los agregados del Dashboard del ejercicio activo. Los contadores del Dashboard muestran las filas excluidas, evitando indicadores aparentemente completos cuando hay errores. Las validaciones de Excel ayudan a prevenir entradas, mientras que Estado también detecta datos pegados, cambios posteriores en catálogos y duplicaciones.
 
 ## Definiciones financieras
 
@@ -57,9 +58,9 @@ Cada operación tiene una fórmula de Estado. `OK` requiere fecha válida del ej
 - Dashboard e Informes usan fecha de operación; Tesorería usa fecha efectiva de cobro o pago. Ningún flujo de caja alimenta el beneficio operativo.
 - No se modelan todavía devoluciones, abonos, impagos, existencias, amortizaciones ni conciliación de IVA. Los importes negativos están bloqueados en esta versión; las correcciones se hacen anulando/reemplazando una línea.
 
-## Contrato de futuras hojas
+## Experiencia y validación final
 
-Solo queda pendiente la hoja Instrucciones y los ajustes finales de experiencia de usuario. Los datos de Tesorería no se suman al resultado operativo.
+Instrucciones usa lenguaje breve, leyenda y enlaces internos. Cada hoja de trabajo tiene accesos directos a Inicio, Panel, Ajustes e Informes en la fila 3. Verde claro identifica entradas; blanco o gris, cálculos; rojo suave, filas para revisar. Las fórmulas siguen protegidas y las entradas desbloqueadas. El Dashboard destaca el beneficio estimado y las alertas. Los gráficos comienzan debajo de los indicadores o tablas principales; sus anclas no ocupan las tablas laterales. Los datos de Tesorería no se suman al resultado operativo. La prueba automatizada comprueba estructura, no la representación real en Excel. Quedan pendientes el recálculo y la revisión visual e interactiva en Excel antes de comercializar.
 
 ## Capacidad y compatibilidad
 

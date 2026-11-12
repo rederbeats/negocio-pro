@@ -20,7 +20,7 @@ def validation(ws, kind):
 
 def test_outputs_and_demo(tmp_path, demo):
     clean = load_workbook(build(tmp_path / 'clean.xlsx', ventas=14, gastos=14, productos=3, clientes=3, proveedores=3, movimientos=14, caja=14, objetivos=14))
-    expected = ['Dashboard', 'Ventas', 'Gastos', 'Productos', 'Clientes', 'Proveedores', 'Inventario', 'Tesorería', 'Objetivos', 'Informes', 'Configuración']
+    expected = ['Instrucciones', 'Dashboard', 'Ventas', 'Gastos', 'Productos', 'Clientes', 'Proveedores', 'Inventario', 'Tesorería', 'Objetivos', 'Informes', 'Configuración']
     assert demo.sheetnames == clean.sheetnames == expected
     assert demo['Ventas']['B5'].value == 'V-001'
     assert clean['Ventas']['B5'].value is None
@@ -44,7 +44,7 @@ def test_protection_and_navigation(demo):
         assert not ws.protection.selectLockedCells and not ws.protection.selectUnlockedCells
         assert not ws[input_cell].protection.locked and ws[output_cell].protection.locked
         assert ws.auto_filter.ref.startswith('A4:') and ws.freeze_panes == 'A5'
-        assert ws[input_cell].fill.fgColor.rgb.endswith('FFF8E5')
+        assert ws[input_cell].fill.fgColor.rgb.endswith('EDF7F0')
 
 
 def test_invalid_rows_excluded_and_flagged(demo):
@@ -189,8 +189,8 @@ def test_treasury_demo_expected_independent_arithmetic(demo):
     outflows = sum(Decimal(str(t[f'E{r}'].value)) for r in (7, 8))
     assert (inflows, outflows) == (Decimal('790.4'), Decimal('142.35'))
     assert Decimal('1100') + inflows - outflows == Decimal('1748.05')
-    assert t['P5'].value == '=M5+N5-O5'
-    assert t['M6'].value == '=P5'
+    assert 'M5+N5-O5' in t['P5'].value
+    assert 'P5' in t['M6'].value
     assert 'Tesorería!' in demo['Dashboard']['J18'].value
 
 
@@ -221,3 +221,47 @@ def test_reports_reconcile_with_dashboard(demo):
     assert 'SUMIFS(Ventas!$H$5:$H$18' in r['M5'].value
     assert 'SUMIFS(Ventas!$M$5:$M$18' in r['N5'].value
     assert len(r._charts) == 1
+
+
+def test_instructions_first_and_navigation(demo):
+    assert demo.active.title == 'Instrucciones'
+    ws = demo['Instrucciones']
+    assert ws['B2'].value.startswith('NEGOCIO PRO')
+    assert 'cinco minutos' in ws['B5'].value
+    combined = ' '.join(str(ws.cell(row, col).value or '') for row in range(5, 28) for col in (2, 3))
+    for term in ('Configura', 'productos', 'ventas', 'gastos', 'Inventario', 'cobros', 'beneficio', 'IVA', 'REVISAR', 'FUERA DE EJERCICIO'):
+        assert term.lower() in combined.lower()
+    for name in ('Dashboard', 'Ventas', 'Gastos', 'Productos', 'Clientes', 'Proveedores', 'Inventario', 'Tesorería', 'Objetivos', 'Informes', 'Configuración'):
+        assert any(c.hyperlink and c.hyperlink.location == f"'{name}'!A1" for row in ws for c in row)
+    for name in demo.sheetnames[1:]:
+        assert demo[name]['A3'].hyperlink.location == "'Instrucciones'!A1"
+
+
+def test_year_change_keeps_pending_and_flags_stale_opening_balance(demo):
+    v, g, t, cfg, dash = (demo[x] for x in ('Ventas', 'Gastos', 'Tesorería', 'Configuración', 'Dashboard'))
+    assert cfg['B8'].value == cfg['B6'].value == 2026
+    assert not cfg['B8'].protection.locked
+    cfg['B6'] = 2027
+    assert 'B6<>\'Configuración\'!$B$8' in t['M5'].value or "$B$6<>'Configuración'!$B$8" in t['M5'].value
+    assert '"REVISAR SALDO"' in dash['J18'].value
+    assert 'P16' in dash['J18'].value
+    assert '$B$6<>$B$8' in cfg['J5'].value
+    assert 'Tesorería!$I$5:$I$18' in v['P5'].value
+    assert 'Tesorería!$J$5:$J$18' in g['L5'].value
+    for cell in ('P5', 'Q5'):
+        assert "Configuración" not in v[cell].value
+    assert '"FUERA DE EJERCICIO"' in v['H5'].value
+    assert '"FUERA DE EJERCICIO"' in t['I5'].value
+
+
+def test_premium_visual_hierarchy_and_chart_positions(demo):
+    dash, reports = demo['Dashboard'], demo['Informes']
+    assert dash['A8'].fill.fgColor.rgb.endswith('18324D')
+    assert dash['B11'].fill.fgColor.rgb.endswith('DDEFE6')
+    assert len(dash.conditional_formatting) >= 3
+    assert dash._charts[0].anchor._from.row == 18  # comienza debajo de los indicadores
+    assert reports._charts[0].anchor._from.row == 20  # comienza debajo de la tabla anual
+    assert dash._charts[0].anchor._from.col == 0
+    assert reports._charts[0].anchor._from.col == 0
+    assert dash['I4'].value == 'Categoría de gasto'
+    assert reports['K4'].value == 'ID producto'

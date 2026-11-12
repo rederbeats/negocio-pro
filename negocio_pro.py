@@ -10,6 +10,7 @@ from openpyxl import Workbook
 from openpyxl.chart import BarChart, Reference
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.worksheet.hyperlink import Hyperlink
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.workbook.properties import CalcProperties
@@ -20,8 +21,8 @@ NAVY = "18324D"
 GREEN = "DDEFE6"
 GRAY = "E9EDF1"
 WHITE = "FFFFFF"
-INPUT = "FFF8E5"
-RED = "F8D7DA"
+INPUT = "EDF7F0"
+RED = "F6E4E1"
 EURO = '#,##0.00 "€";[Red]-#,##0.00 "€"'
 PERCENT = '0.0%'
 DATE = 'DD/MM/YYYY'
@@ -29,19 +30,25 @@ DATE = 'DD/MM/YYYY'
 
 def style_sheet(ws, title, headers, widths, last_row):
     ws.sheet_view.showGridLines = False
+    ws.sheet_view.zoomScale = 85
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(headers))
     c = ws.cell(1, 1, title)
     c.fill = PatternFill('solid', fgColor=NAVY)
     c.font = Font(name='Aptos Display', size=18, bold=True, color=WHITE)
     c.alignment = Alignment(vertical='center')
     ws.row_dimensions[1].height = 36
+    ws.row_dimensions[2].height = 28
+    ws.cell(2, 1).fill = PatternFill('solid', fgColor=GREEN)
+    ws.cell(2, 1).font = Font(name='Aptos', size=10, color=NAVY)
+    ws.cell(2, 1).alignment = Alignment(vertical='center', wrap_text=True, indent=1)
     for j, (header, width) in enumerate(zip(headers, widths), 1):
         cell = ws.cell(4, j, header)
         cell.fill = PatternFill('solid', fgColor=NAVY)
         cell.font = Font(name='Aptos', bold=True, color=WHITE)
         cell.alignment = Alignment(wrap_text=True, vertical='center')
         ws.column_dimensions[get_column_letter(j)].width = width
-    ws.row_dimensions[4].height = 34
+    ws.row_dimensions[4].height = 38
     ws.freeze_panes = 'A5'
     ws.auto_filter.ref = f'A4:{get_column_letter(len(headers))}{last_row}'
     ws.sheet_properties.pageSetUpPr.fitToPage = True
@@ -50,6 +57,7 @@ def style_sheet(ws, title, headers, widths, last_row):
 def format_body(ws, first, last, ncols, editable, formats=None):
     formats = formats or {}
     for row in ws.iter_rows(min_row=first, max_row=last, max_col=ncols):
+        ws.row_dimensions[row[0].row].height = 23
         for c in row:
             c.font = Font(name='Aptos', size=10, color=NAVY)
             c.fill = PatternFill('solid', fgColor=INPUT if c.column in editable else (WHITE if c.row % 2 else 'F5F7F9'))
@@ -57,6 +65,7 @@ def format_body(ws, first, last, ncols, editable, formats=None):
             protection.locked = c.column not in editable
             c.protection = protection
             c.number_format = formats.get(c.column, 'General')
+            c.alignment = Alignment(vertical='center')
     ws.protection = SheetProtection(sheet=True, selectLockedCells=False, selectUnlockedCells=False,
                                     autoFilter=False, sort=False, formatCells=False)
 
@@ -101,6 +110,112 @@ def flag(ws, formula, target):
     ws.conditional_formatting.add(target, FormulaRule(formula=[formula], fill=PatternFill('solid', fgColor=RED)))
 
 
+def navigation(wb):
+    targets = [('Inicio', 'Instrucciones'), ('Panel', 'Dashboard'),
+               ('Ajustes', 'Configuración'), ('Informes', 'Informes')]
+    for ws in wb:
+        if ws.title == 'Instrucciones':
+            continue
+        ws.row_dimensions[3].height = 25
+        for col, (label, name) in enumerate(targets, 1):
+            cell = ws.cell(3, col, label)
+            cell.hyperlink = Hyperlink(ref=cell.coordinate, location=f"'{name}'!A1", display=label)
+            cell.fill = PatternFill('solid', fgColor=GRAY if ws.title != name else GREEN)
+            cell.font = Font(name='Aptos', size=10, bold=True, color=NAVY)
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+
+
+def instructions_sheet(ws, demo):
+    ws.sheet_view.showGridLines = False
+    ws.sheet_view.zoomScale = 90
+    for col, width in {'A': 4, 'B': 19, 'C': 19, 'D': 19, 'E': 19, 'F': 19, 'G': 19, 'H': 4}.items():
+        ws.column_dimensions[col].width = width
+    ws.merge_cells('B2:G3')
+    title = ws['B2']
+    title.value = 'NEGOCIO PRO  |  Empieza aquí'
+    title.font = Font(name='Aptos Display', size=22, bold=True, color=WHITE)
+    title.fill = PatternFill('solid', fgColor=NAVY)
+    title.alignment = Alignment(vertical='center', indent=1)
+    ws.row_dimensions[2].height = 30
+    ws.row_dimensions[3].height = 24
+    ws.merge_cells('B5:G5')
+    ws['B5'] = 'Tu negocio, claro en cinco minutos'
+    ws['B5'].font = Font(name='Aptos', size=15, bold=True, color=NAVY)
+    ws.merge_cells('B6:G6')
+    ws['B6'] = 'Demo con datos inventados: prueba primero las hojas y después usa la versión limpia.' if demo else 'Escribe solo en las celdas verde claro. Los resultados se actualizan al abrir el libro en Excel.'
+    ws['B6'].font = Font(name='Aptos', size=11, color=NAVY)
+    steps = [
+        ('1  Configura', 'Pon el nombre de tu negocio, el ejercicio y el saldo inicial de Banco o Efectivo.', 'Configuración'),
+        ('2  Añade productos', 'Da un ID a cada producto. Si es físico, indica stock inicial y mínimo.', 'Productos'),
+        ('3  Registra operaciones', 'Anota ventas y gastos sin IVA. El ID de cliente o proveedor puede quedar vacío.', 'Ventas'),
+        ('4  Controla el stock', 'Por una venta física, anota una sola Salida con referencia única. La venta no descuenta stock.', 'Inventario'),
+        ('5  Anota la caja', 'Registra cobros y pagos reales, con IVA y fecha efectiva; admite importes parciales.', 'Tesorería'),
+        ('6  Mira el resultado', 'Consulta Panel, Objetivos e Informes. Revisa las alertas antes de decidir.', 'Dashboard'),
+    ]
+    for row, (heading, body, name) in enumerate(steps, 8):
+        ws.merge_cells(start_row=row, start_column=3, end_row=row, end_column=7)
+        left = ws.cell(row, 2, heading)
+        left.hyperlink = Hyperlink(ref=left.coordinate, location=f"'{name}'!A1", display=heading)
+        left.font = Font(name='Aptos', size=11, bold=True, color=NAVY)
+        left.fill = PatternFill('solid', fgColor=GREEN)
+        left.alignment = Alignment(vertical='center', indent=1)
+        text = ws.cell(row, 3, body)
+        text.font = Font(name='Aptos', size=11, color=NAVY)
+        text.fill = PatternFill('solid', fgColor='F5F7F9')
+        text.alignment = Alignment(vertical='center', wrap_text=True, indent=1)
+        ws.row_dimensions[row].height = 45
+    ws.merge_cells('B15:G15')
+    ws['B15'] = 'Tres ideas para no confundirse'
+    ws['B15'].font = Font(name='Aptos', size=13, bold=True, color=NAVY)
+    notes = [
+        'Beneficio ≠ caja: puedes vender hoy y cobrar otro día. El Panel mide resultado; Tesorería, dinero recibido y pagado.',
+        'Ventas, gastos y metas se escriben sin IVA. En Tesorería anotas el importe que realmente entra o sale, con IVA.',
+        'Una venta física no mueve stock sola. Haz una única Salida en Inventario; evita registrar la misma salida dos veces.',
+    ]
+    for row, note in enumerate(notes, 16):
+        ws.merge_cells(start_row=row, start_column=2, end_row=row, end_column=7)
+        cell = ws.cell(row, 2, note)
+        cell.font = Font(name='Aptos', size=11, color=NAVY)
+        cell.alignment = Alignment(vertical='center', wrap_text=True, indent=1)
+        cell.fill = PatternFill('solid', fgColor=WHITE if row % 2 else 'F5F7F9')
+        ws.row_dimensions[row].height = 42
+    ws.merge_cells('B20:G20')
+    ws['B20'] = 'Cómo leer los colores y estados'
+    ws['B20'].font = Font(name='Aptos', size=13, bold=True, color=NAVY)
+    legend = [('Verde claro', 'Escribe aquí', INPUT), ('Blanco o gris', 'Cálculo automático', GRAY),
+              ('OK', 'Fila válida', GREEN), ('REVISAR', 'Corrige la fila; no entra en indicadores', RED),
+              ('FUERA DE EJERCICIO', 'Operación de otro año; sigue disponible', GRAY)]
+    for row, (label, meaning, color) in enumerate(legend, 21):
+        ws.cell(row, 2, label)
+        ws.merge_cells(start_row=row, start_column=3, end_row=row, end_column=7)
+        ws.cell(row, 3, meaning)
+        ws.cell(row, 2).fill = PatternFill('solid', fgColor=color)
+        for col in (2, 3):
+            ws.cell(row, col).font = Font(name='Aptos', size=10, color=NAVY, bold=col == 2)
+        ws.row_dimensions[row].height = 28
+    ws.merge_cells('B27:G27')
+    ws['B27'] = 'Cifras de gestión, no contabilidad certificada ni cálculo fiscal.'
+    ws['B27'].font = Font(name='Aptos', size=10, italic=True, color=NAVY)
+    ws.merge_cells('B29:G29')
+    ws['B29'] = 'Ir directamente a una hoja'
+    ws['B29'].font = Font(name='Aptos', size=13, bold=True, color=NAVY)
+    sheet_links = ['Dashboard', 'Configuración', 'Productos', 'Ventas', 'Gastos', 'Clientes',
+                   'Proveedores', 'Inventario', 'Tesorería', 'Objetivos', 'Informes']
+    for index, name in enumerate(sheet_links):
+        row = 30 + index // 2
+        col = 2 if index % 2 == 0 else 5
+        ws.merge_cells(start_row=row, start_column=col, end_row=row, end_column=col + 2)
+        cell = ws.cell(row, col, name)
+        cell.hyperlink = Hyperlink(ref=cell.coordinate, location=f"'{name}'!A1", display=name)
+        cell.fill = PatternFill('solid', fgColor=GREEN)
+        cell.font = Font(name='Aptos', size=11, bold=True, color=NAVY)
+        cell.alignment = Alignment(vertical='center', indent=1)
+        ws.row_dimensions[row].height = 29
+    ws.freeze_panes = 'B5'
+    ws.sheet_properties.tabColor = GREEN
+    ws.protection = SheetProtection(sheet=True, selectLockedCells=False, selectUnlockedCells=False)
+
+
 def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clientes=200, proveedores=200, movimientos=500, caja=500, objetivos=120):
     if min(ventas, gastos, productos, clientes, proveedores, movimientos, caja, objetivos) < 2:
         raise ValueError('Cada capacidad debe ser al menos 2')
@@ -108,6 +223,8 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     wb = Workbook()
     dash = wb.active
     dash.title = 'Dashboard'
+    intro = wb.create_sheet('Instrucciones', 0)
+    wb.active = 0
     vs = wb.create_sheet('Ventas')
     gs = wb.create_sheet('Gastos')
     ps = wb.create_sheet('Productos')
@@ -127,6 +244,7 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     cfg['A5'], cfg['B5'] = 'Empresa', 'Mi negocio'
     cfg['A6'], cfg['B6'] = 'Ejercicio', 2026
     cfg['A7'], cfg['B7'] = 'Moneda', 'EUR'
+    cfg['A8'], cfg['B8'] = 'Ejercicio saldo inicial', 2026
     cfg['A9'] = 'Entradas: amarillo claro · Cálculos: blanco/gris'
     cfg['A10'] = 'Todos los importes de operación se introducen sin IVA.'
     cfg['A11'] = 'Demo: datos ficticios; no usar para decisiones reales.' if demo else 'Plantilla limpia: introduce tus datos en las hojas de entrada.'
@@ -169,7 +287,7 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
             protection.locked = False
             cell.protection = protection
             cell.fill = PatternFill('solid', fgColor=INPUT)
-        cfg.cell(row, 10, f'=IF(H{row}="","",I{row}+SUMIFS(Tesorería!$I$5:$I${te},Tesorería!$F$5:$F${te},H{row},Tesorería!$B$5:$B${te},">="&DATE($B$6,1,1),Tesorería!$B$5:$B${te},"<"&DATE($B$6+1,1,1))-SUMIFS(Tesorería!$J$5:$J${te},Tesorería!$F$5:$F${te},H{row},Tesorería!$B$5:$B${te},">="&DATE($B$6,1,1),Tesorería!$B$5:$B${te},"<"&DATE($B$6+1,1,1)))').number_format = EURO
+        cfg.cell(row, 10, f'=IF(OR(H{row}="",$B$6<>$B$8),"",I{row}+SUMIFS(Tesorería!$I$5:$I${te},Tesorería!$F$5:$F${te},H{row},Tesorería!$B$5:$B${te},">="&DATE($B$6,1,1),Tesorería!$B$5:$B${te},"<"&DATE($B$6+1,1,1))-SUMIFS(Tesorería!$J$5:$J${te},Tesorería!$F$5:$F${te},H{row},Tesorería!$B$5:$B${te},">="&DATE($B$6,1,1),Tesorería!$B$5:$B${te},"<"&DATE($B$6+1,1,1)))').number_format = EURO
     add_custom(cfg, 'H5:H14', 'OR(H5="",COUNTIF($H$5:$H$14,H5)=1)', 'La cuenta debe tener un nombre único.')
     add_decimal(cfg, 'I5:I14')
     flag(cfg, 'AND($H5<>"",NOT(ISNUMBER($I5)))', 'H5:I14')
@@ -177,11 +295,13 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
         for c in row:
             c.font = Font(name='Aptos', color=NAVY)
             protection = copy(c.protection)
-            protection.locked = c.coordinate not in {'B5', 'B6'}
+            protection.locked = c.coordinate not in {'B5', 'B6', 'B8'}
             c.protection = protection
-    for pos in ('B5', 'B6'):
+    for pos in ('B5', 'B6', 'B8'):
         cfg[pos].fill = PatternFill('solid', fgColor=INPUT)
     add_custom(cfg, 'B6', 'AND(ISNUMBER(B6),B6=INT(B6),B6>=2000,B6<=2100)', 'El ejercicio debe ser un año entre 2000 y 2100.')
+    add_custom(cfg, 'B8', 'AND(ISNUMBER(B8),B8=INT(B8),B8>=2000,B8<=2100)', 'Indica el ejercicio de los saldos iniciales.')
+    flag(cfg, '$B$6<>$B$8', 'A8:B8')
     cfg.protection = SheetProtection(sheet=True, selectLockedCells=False, selectUnlockedCells=True)
 
     style_sheet(ps, 'Productos', ['ID producto', 'Nombre', 'Categoría', 'Precio neto', 'Coste neto', 'Margen unitario', 'Margen %', 'Tipo', 'Stock inicial', 'Stock mínimo', 'Stock disponible', 'Alerta', 'Estado'], [19, 32, 24, 19, 19, 20, 16, 18, 17, 17, 20, 18, 18], pe)
@@ -306,10 +426,10 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
         cash.column_dimensions[get_column_letter(col)].width = width
     for row in range(5, 17):
         cash.cell(row, 12, f'=DATE(\'Configuración\'!$B$6,{row-4},1)').number_format = 'MMMM YYYY'
-        cash.cell(row, 13, '=SUM(\'Configuración\'!$I$5:$I$14)' if row == 5 else f'=P{row-1}').number_format = EURO
+        cash.cell(row, 13, '=IF(\'Configuración\'!$B$6<>\'Configuración\'!$B$8,"",SUM(\'Configuración\'!$I$5:$I$14))' if row == 5 else f'=IF(M{row-1}="","",P{row-1})').number_format = EURO
         for col, source in [(14, 'I'), (15, 'J')]:
             cash.cell(row, col, f'=SUMIFS(${source}$5:${source}${te},$H$5:$H${te},"OK",$B$5:$B${te},">="&L{row},$B$5:$B${te},"<"&EDATE(L{row},1))').number_format = EURO
-        cash.cell(row, 16, f'=M{row}+N{row}-O{row}').number_format = EURO
+        cash.cell(row, 16, f'=IF(M{row}="","",M{row}+N{row}-O{row})').number_format = EURO
 
     style_sheet(goals, 'Objetivos · metas por ejercicio y mes', ['Ejercicio', 'Mes (1-12)', 'Meta ventas', 'Ventas reales', 'Cumpl. ventas', 'Desv. ventas', 'Meta beneficio', 'Beneficio real', 'Cumpl. beneficio', 'Desv. beneficio', 'Límite gastos', 'Gastos reales', 'Control gastos', 'Ahorro vs límite', 'Estado', 'Actividad'], [16, 16, 20, 20, 18, 20, 20, 20, 20, 20, 20, 20, 18, 20, 19, 19], oe)
     goals['A2'] = 'Una fila por ejercicio y mes. Metas sin IVA. Vacío = SIN META; meta 0 = porcentaje no aplicable.'
@@ -413,7 +533,7 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     dash.auto_filter.ref = 'C4:G16'
     dash.protection = SheetProtection(sheet=True, selectLockedCells=False, selectUnlockedCells=False)
     dash['A11'] = 'Filas para revisar'
-    dash['B11'] = f'=COUNTIF(Ventas!$O$5:$O${ve},"REVISAR")+COUNTIF(Gastos!$K$5:$K${ge},"REVISAR")+COUNTIF(Clientes!$I$5:$I${ce},"REVISAR")+COUNTIF(Proveedores!$I$5:$I${se},"REVISAR")+COUNTIF(Productos!$M$5:$M${pe},"REVISAR")+COUNTIF(Inventario!$I$5:$I${ie},"REVISAR")+COUNTIF(Tesorería!$H$5:$H${te},"REVISAR")+COUNTIF(Objetivos!$O$5:$O${oe},"REVISAR")'
+    dash['B11'] = f'=COUNTIF(Ventas!$O$5:$O${ve},"REVISAR")+COUNTIF(Gastos!$K$5:$K${ge},"REVISAR")+COUNTIF(Clientes!$I$5:$I${ce},"REVISAR")+COUNTIF(Proveedores!$I$5:$I${se},"REVISAR")+COUNTIF(Productos!$M$5:$M${pe},"REVISAR")+COUNTIF(Inventario!$I$5:$I${ie},"REVISAR")+COUNTIF(Tesorería!$H$5:$H${te},"REVISAR")+COUNTIF(Objetivos!$O$5:$O${oe},"REVISAR")+IF(\'Configuración\'!$B$6<>\'Configuración\'!$B$8,1,0)'
     dash['A12'] = 'Fuera de ejercicio'
     dash['B12'] = f'=COUNTIF(Ventas!$O$5:$O${ve},"FUERA DE EJERCICIO")+COUNTIF(Gastos!$K$5:$K${ge},"FUERA DE EJERCICIO")+COUNTIF(Tesorería!$H$5:$H${te},"FUERA DE EJERCICIO")'
     for row, label, formula in [
@@ -439,7 +559,7 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     dash['I14'] = 'Resultado sin IVA; no representa caja ni resultado fiscal.'
     dash['I15'] = 'Revisa las alertas antes de utilizar los indicadores.'
     dash['I18'] = 'Saldo final de caja'
-    dash['J18'] = '=Tesorería!P16'
+    dash['J18'] = '=IF(\'Configuración\'!$B$6<>\'Configuración\'!$B$8,"REVISAR SALDO",Tesorería!P16)'
     dash['J18'].number_format = EURO
     target = f'SUMIFS(Objetivos!$C$5:$C${oe},Objetivos!$A$5:$A${oe},\'Configuración\'!$B$6,Objetivos!$O$5:$O${oe},"OK")'
     dash['I19'] = 'Cumplimiento ventas'
@@ -447,6 +567,13 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
     dash['J19'].number_format = PERCENT
     for pos in ('J18', 'J19'):
         dash[pos].fill = PatternFill('solid', fgColor=GREEN)
+    for pos in ('B11', 'B17', 'B18'):
+        flag(dash, f'${pos[0]}${pos[1:]}>0', pos)
+    flag(dash, '$J$18="REVISAR SALDO"', 'J18')
+    dash['A8'].fill = PatternFill('solid', fgColor=NAVY)
+    dash['A8'].font = Font(name='Aptos', bold=True, color=WHITE)
+    dash['B8'].fill = PatternFill('solid', fgColor=NAVY)
+    dash['B8'].font = Font(name='Aptos', size=14, bold=True, color=WHITE)
     for pos in ('B11', 'B12'):
         dash[pos].fill = PatternFill('solid', fgColor=GREEN)
         dash[pos].font = Font(name='Aptos', bold=True, color=NAVY)
@@ -492,6 +619,8 @@ def build(output: Path, demo=False, ventas=500, gastos=500, productos=200, clien
             (date(2026, 2, 3), 'M-001', 'P-002', 'Salida', 3, 'V-002', 'Salida por venta ficticia'),
             (date(2026, 2, 10), 'M-002', 'P-002', 'Entrada', 2, 'ENT-001', 'Reposición ficticia')], 5):
             for col, value in enumerate(row, 1): inv.cell(r, col, value)
+    instructions_sheet(intro, demo)
+    navigation(wb)
     wb.save(output)
     return output
 
